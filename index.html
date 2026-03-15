@@ -547,6 +547,7 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
   <h1 id="race-results-title">Race 1 Complete!</h1>
   <div id="race-finish-order" class="race-result-section"></div>
   <div id="race-payouts" class="race-result-section"></div>
+  <div id="race-massage-section" class="race-result-section"></div>
   <div id="race-standings" class="race-result-section"></div>
   <button class="btn-primary" id="next-race-btn">Next Race</button>
 </div>
@@ -584,11 +585,14 @@ const TOTAL_RACES = 3;
 const DEBT_FLOOR = -100;
 const DRUG_COST = 5;
 const DRUG_SHOP_PAYOUT = 5;
+const MASSAGE_COST = 5;
+const MASSAGE_STRESS_RELIEF = 2;
+const MASSAGE_SHOP_PAYOUT = 10;
+const STRESS_MAX = 10;
 const SHARE_PAYOUTS = { 1: 30, 2: 20, 3: 10 };
 
 // Shops that players can own shares in (between-race purchasing is future work).
-// For now, drug shop shares can be tracked but there's no way to buy them yet.
-const SHOPS = ['drugShop'];
+const SHOPS = ['drugShop', 'massageParlor'];
 
 function escapeHTML(str) {
   const div = document.createElement('div');
@@ -610,10 +614,11 @@ function initGame(playerNames) {
       return { name: name, coins: STARTING_COINS, bets: [], shares: {}, shopShares: {} };
     }),
     snails: SNAILS.map(function(s) {
-      return { color: s.color, label: s.label, css: s.css, position: 0 };
+      return { color: s.color, label: s.label, css: s.css, position: 0, stress: 0 };
     }),
     snailShares: {},
     drugged: {},
+    eliminated: {},
     currentPlayerIndex: 0,
     round: 1,
     raceNumber: 1,
@@ -622,19 +627,23 @@ function initGame(playerNames) {
     turnPhase: 'bet',
     raceResults: [],
   };
-  SNAILS.forEach(function(s) { state.snailShares[s.color] = 0; state.drugged[s.color] = false; });
+  SNAILS.forEach(function(s) { state.snailShares[s.color] = 0; state.drugged[s.color] = false; state.eliminated[s.color] = false; });
   selectedSnail = null;
   wager = MIN_WAGER;
   activeTab = 'bet';
 }
 
 function resetForNextRace() {
-  state.snails.forEach(function(s) { s.position = 0; });
+  state.snails.forEach(function(s) {
+    s.position = 0;
+    // Eliminated snails get stress reset to 0; others keep their stress
+    if (state.eliminated[s.color]) s.stress = 0;
+  });
   state.players.forEach(function(p) {
     p.bets = [];
     p.shares = {};
   });
-  SNAILS.forEach(function(s) { state.snailShares[s.color] = 0; state.drugged[s.color] = false; });
+  SNAILS.forEach(function(s) { state.snailShares[s.color] = 0; state.drugged[s.color] = false; state.eliminated[s.color] = false; });
   state.raceNumber++;
   state.round = 1;
   state.currentPlayerIndex = 0;
@@ -670,6 +679,7 @@ function moveSnails(dieIndices) {
   });
   Object.keys(moves).forEach(function(idx) {
     var snail = state.snails[idx];
+    if (state.eliminated[snail.color]) return; // eliminated snails don't move
     var spaces = moves[idx];
     if (state.drugged[snail.color]) spaces *= 2;
     snail.position = Math.min(snail.position + spaces, TRACK_LENGTH);
@@ -679,8 +689,12 @@ function moveSnails(dieIndices) {
 }
 
 // Returns sorted array of all snails by finish position (1st, 2nd, 3rd...)
+// Eliminated snails always rank last.
 function getRaceRanking() {
   var sorted = state.snails.slice().sort(function(a, b) {
+    var aElim = state.eliminated[a.color] ? 1 : 0;
+    var bElim = state.eliminated[b.color] ? 1 : 0;
+    if (aElim !== bElim) return aElim - bElim;
     if (b.position !== a.position) return b.position - a.position;
     return SNAILS.findIndex(function(s) { return s.color === a.color; })
          - SNAILS.findIndex(function(s) { return s.color === b.color; });
@@ -689,7 +703,9 @@ function getRaceRanking() {
 }
 
 function checkWin() {
-  var finished = state.snails.filter(function(s) { return s.position >= TRACK_LENGTH; });
+  var finished = state.snails.filter(function(s) {
+    return s.position >= TRACK_LENGTH && !state.eliminated[s.color];
+  });
   if (finished.length === 0) return null;
   return getRaceRanking()[0];
 }
@@ -727,14 +743,44 @@ function drugSnail(playerIndex, snailColor) {
   var manager = getMajorityShareholder(snailColor);
   if (!manager || manager !== player) return false;
   if (state.drugged[snailColor]) return false;
+  if (state.eliminated[snailColor]) return false;
   if (!canAfford(player, DRUG_COST)) return false;
   player.coins -= DRUG_COST;
   state.drugged[snailColor] = true;
+  // Add stress from drug use
+  var snail = state.snails.find(function(s) { return s.color === snailColor; });
+  snail.stress++;
+  if (snail.stress >= STRESS_MAX) {
+    state.eliminated[snailColor] = true;
+    state.drugged[snailColor] = false;
+  }
   // Pay drug shop shareholders
   state.players.forEach(function(p) {
     var shares = p.shopShares['drugShop'] || 0;
     if (shares > 0) {
       p.coins += DRUG_SHOP_PAYOUT * shares;
+    }
+  });
+  return true;
+}
+
+// Massage a snail — between-race manager action.
+// Costs MASSAGE_COST credits. Removes MASSAGE_STRESS_RELIEF stress (min 0).
+// Each massage parlor shareholder receives MASSAGE_SHOP_PAYOUT credits per share.
+function massageSnail(playerIndex, snailColor) {
+  var player = state.players[playerIndex];
+  var manager = getMajorityShareholder(snailColor);
+  if (!manager || manager !== player) return false;
+  if (!canAfford(player, MASSAGE_COST)) return false;
+  var snail = state.snails.find(function(s) { return s.color === snailColor; });
+  if (snail.stress <= 0) return false;
+  player.coins -= MASSAGE_COST;
+  snail.stress = Math.max(0, snail.stress - MASSAGE_STRESS_RELIEF);
+  // Pay massage parlor shareholders
+  state.players.forEach(function(p) {
+    var shares = p.shopShares['massageParlor'] || 0;
+    if (shares > 0) {
+      p.coins += MASSAGE_SHOP_PAYOUT * shares;
     }
   });
   return true;
@@ -786,6 +832,18 @@ function resolveShares(ranking) {
   return payoutLog;
 }
 
+// Adjust stress after a race: top 3 get -1, bottom 3 get +1 (skip eliminated).
+function adjustRaceStress(ranking) {
+  ranking.forEach(function(s, i) {
+    if (state.eliminated[s.color]) return; // already handled
+    if (i < 3) {
+      s.stress = Math.max(0, s.stress - 1);
+    } else {
+      s.stress++;
+    }
+  });
+}
+
 function serviceDebt() {
   var debtLog = [];
   state.players.forEach(function(player) {
@@ -804,6 +862,7 @@ var SIM_RUNS = 1000;
 
 function simulateWinProbabilities() {
   var positions = state.snails.map(function(s) { return s.position; });
+  var elim = state.snails.map(function(s) { return state.eliminated[s.color]; });
   var wins = [0, 0, 0, 0, 0, 0];
 
   for (var r = 0; r < SIM_RUNS; r++) {
@@ -812,16 +871,16 @@ function simulateWinProbabilities() {
     while (maxIter-- > 0) {
       var d1 = Math.floor(Math.random() * 6);
       var d2 = Math.floor(Math.random() * 6);
-      simPos[d1] = Math.min(simPos[d1] + 1, TRACK_LENGTH);
-      simPos[d2] = Math.min(simPos[d2] + 1, TRACK_LENGTH);
+      if (!elim[d1]) simPos[d1] = Math.min(simPos[d1] + 1, TRACK_LENGTH);
+      if (!elim[d2]) simPos[d2] = Math.min(simPos[d2] + 1, TRACK_LENGTH);
 
       var best = -1;
       var bestPos = -1;
       for (var i = 0; i < 6; i++) {
-        if (simPos[i] >= TRACK_LENGTH && simPos[i] > bestPos) {
+        if (!elim[i] && simPos[i] >= TRACK_LENGTH && simPos[i] > bestPos) {
           bestPos = simPos[i];
           best = i;
-        } else if (simPos[i] >= TRACK_LENGTH && simPos[i] === bestPos && (best === -1 || i < best)) {
+        } else if (!elim[i] && simPos[i] >= TRACK_LENGTH && simPos[i] === bestPos && (best === -1 || i < best)) {
           best = i;
         }
       }
@@ -864,7 +923,16 @@ function buildTrack() {
     var label = document.createElement('div');
     label.className = 'lane-label';
     label.style.background = SNAILS[row].css;
-    label.textContent = SNAILS[row].label;
+    var snail = state.snails[row];
+    if (state.eliminated[snail.color]) {
+      label.textContent = 'X';
+      label.style.opacity = '0.4';
+    } else {
+      label.textContent = SNAILS[row].label;
+      if (snail.stress > 0) {
+        label.title = capitalize(snail.color) + ' stress: ' + snail.stress + '/' + STRESS_MAX;
+      }
+    }
     track.appendChild(label);
 
     for (var col = 0; col < TRACK_LENGTH; col++) {
@@ -887,6 +955,7 @@ function renderSnails() {
 
   for (var i = 0; i < 6; i++) {
     var snail = state.snails[i];
+    var isElim = state.eliminated[snail.color];
     var pos = snail.position;
     var cell;
 
@@ -900,7 +969,13 @@ function renderSnails() {
     var el = document.createElement('div');
     el.className = 'snail';
     el.style.background = snail.css;
-    el.textContent = '\u{1F40C}';
+    if (isElim) {
+      el.textContent = '\u274C';
+      el.style.opacity = '0.3';
+      el.style.filter = 'grayscale(1)';
+    } else {
+      el.textContent = '\u{1F40C}';
+    }
     cell.appendChild(el);
   }
 }
@@ -975,7 +1050,7 @@ function renderBettingPanel() {
       drugTab.style.display = '';
       btnDrug.style.display = '';
       renderDrugPicker();
-      btnDrug.disabled = !selectedSnail || state.drugged[selectedSnail] || !canAfford(player, DRUG_COST);
+      btnDrug.disabled = !selectedSnail || state.drugged[selectedSnail] || state.eliminated[selectedSnail] || !canAfford(player, DRUG_COST);
     }
   } else {
     panel.style.display = 'none';
@@ -986,13 +1061,22 @@ function renderSnailPicker() {
   var picker = document.getElementById('snail-picker');
   picker.textContent = '';
   SNAILS.forEach(function(s) {
+    var isElim = state.eliminated[s.color];
     var btn = document.createElement('button');
     btn.className = 'snail-pick-btn' + (selectedSnail === s.color ? ' selected' : '');
     btn.style.background = s.css;
-    btn.textContent = '\u{1F40C}';
+    if (isElim) {
+      btn.textContent = '\u274C';
+      btn.disabled = true;
+      btn.style.opacity = '0.3';
+    } else {
+      btn.textContent = '\u{1F40C}';
+    }
     btn.addEventListener('click', function() {
-      selectedSnail = s.color;
-      renderBettingPanel();
+      if (!isElim) {
+        selectedSnail = s.color;
+        renderBettingPanel();
+      }
     });
     picker.appendChild(btn);
   });
@@ -1003,22 +1087,24 @@ function renderSharePicker() {
   picker.textContent = '';
   SNAILS.forEach(function(s) {
     var totalSold = state.snailShares[s.color] || 0;
+    var isElim = state.eliminated[s.color];
     var btn = document.createElement('button');
     btn.className = 'snail-pick-btn' + (selectedSnail === s.color ? ' selected' : '');
     btn.style.background = s.css;
-    btn.disabled = totalSold >= MAX_SHARES_PER_SNAIL;
+    btn.disabled = totalSold >= MAX_SHARES_PER_SNAIL || isElim;
+    if (isElim) btn.style.opacity = '0.3';
 
     var emoji = document.createElement('span');
-    emoji.textContent = '\u{1F40C}';
+    emoji.textContent = isElim ? '\u274C' : '\u{1F40C}';
     btn.appendChild(emoji);
 
     var count = document.createElement('span');
     count.className = 'share-count';
-    count.textContent = totalSold + '/' + MAX_SHARES_PER_SNAIL;
+    count.textContent = isElim ? 'OUT' : totalSold + '/' + MAX_SHARES_PER_SNAIL;
     btn.appendChild(count);
 
     btn.addEventListener('click', function() {
-      if (totalSold < MAX_SHARES_PER_SNAIL) {
+      if (totalSold < MAX_SHARES_PER_SNAIL && !isElim) {
         selectedSnail = s.color;
         renderBettingPanel();
       }
@@ -1044,24 +1130,35 @@ function renderDrugPicker() {
   var managed = getManagedSnails(player);
   SNAILS.forEach(function(s) {
     var isManaged = managed.indexOf(s.color) !== -1;
+    var snail = state.snails.find(function(sn) { return sn.color === s.color; });
+    var isElim = state.eliminated[s.color];
     var btn = document.createElement('button');
     btn.className = 'snail-pick-btn' + (selectedSnail === s.color ? ' selected' : '');
     btn.style.background = s.css;
-    btn.disabled = !isManaged || state.drugged[s.color];
+    btn.disabled = !isManaged || state.drugged[s.color] || isElim;
+    if (isElim) btn.style.opacity = '0.3';
 
     var emoji = document.createElement('span');
-    emoji.textContent = '\u{1F40C}';
+    emoji.textContent = isElim ? '\u274C' : '\u{1F40C}';
     btn.appendChild(emoji);
 
     if (isManaged) {
       var label = document.createElement('span');
       label.className = 'share-count';
-      label.textContent = state.drugged[s.color] ? 'high' : 'mgr';
+      if (isElim) {
+        label.textContent = 'OUT';
+        label.style.color = '#e74c3c';
+      } else if (state.drugged[s.color]) {
+        label.textContent = 'high';
+      } else {
+        label.textContent = snail.stress + '/' + STRESS_MAX;
+        if (snail.stress >= 7) label.style.color = '#e74c3c';
+      }
       btn.appendChild(label);
     }
 
     btn.addEventListener('click', function() {
-      if (isManaged && !state.drugged[s.color]) {
+      if (isManaged && !state.drugged[s.color] && !isElim) {
         selectedSnail = s.color;
         renderBettingPanel();
       }
@@ -1264,6 +1361,7 @@ function doRoll() {
         var ranking = getRaceRanking();
         resolveBets(winner.color);
         var shareLog = resolveShares(ranking);
+        adjustRaceStress(ranking);
         var debtLog = serviceDebt();
 
         state.raceResults.push({
@@ -1305,19 +1403,21 @@ function showRaceResults(ranking, shareLog, debtLog) {
 
   var placeLabels = ['1st', '2nd', '3rd', '4th', '5th', '6th'];
   ranking.forEach(function(s, i) {
+    var isElim = state.eliminated[s.color];
     var row = document.createElement('div');
     row.className = 'result-row';
+    if (isElim) row.style.opacity = '0.4';
     var left = document.createElement('span');
     left.textContent = placeLabels[i] + ' ';
     var colorSpan = document.createElement('span');
     colorSpan.style.color = s.css;
     colorSpan.style.fontWeight = '700';
-    colorSpan.textContent = capitalize(s.color);
+    colorSpan.textContent = capitalize(s.color) + (isElim ? ' (eliminated)' : '');
     left.appendChild(colorSpan);
     row.appendChild(left);
     var posSpan = document.createElement('span');
     posSpan.style.opacity = '0.6';
-    posSpan.textContent = 'pos ' + s.position;
+    posSpan.textContent = isElim ? 'stress KO' : 'pos ' + s.position;
     row.appendChild(posSpan);
     orderDiv.appendChild(row);
   });
@@ -1368,7 +1468,14 @@ function showRaceResults(ranking, shareLog, debtLog) {
     });
   }
 
+  // Massage section — managers can massage their snails between races
+  renderMassageSection();
+
   // Standings after race
+  renderRaceStandings();
+}
+
+function renderRaceStandings() {
   var standingsDiv = document.getElementById('race-standings');
   standingsDiv.textContent = '';
   var h3c = document.createElement('h3');
@@ -1388,6 +1495,113 @@ function showRaceResults(ranking, shareLog, debtLog) {
     else coinsSpan.style.fontWeight = '700';
     row.appendChild(coinsSpan);
     standingsDiv.appendChild(row);
+  });
+}
+
+function renderMassageSection() {
+  var section = document.getElementById('race-massage-section');
+  section.textContent = '';
+
+  var h3 = document.createElement('h3');
+  h3.textContent = 'Snail Stress & Massage';
+  section.appendChild(h3);
+
+  // Show each snail's stress with massage button if player is manager
+  SNAILS.forEach(function(s) {
+    var snail = state.snails.find(function(sn) { return sn.color === s.color; });
+    var row = document.createElement('div');
+    row.className = 'result-row';
+    row.style.alignItems = 'center';
+
+    var left = document.createElement('span');
+    left.style.display = 'flex';
+    left.style.alignItems = 'center';
+    left.style.gap = '8px';
+
+    var colorDot = document.createElement('span');
+    colorDot.style.display = 'inline-block';
+    colorDot.style.width = '12px';
+    colorDot.style.height = '12px';
+    colorDot.style.borderRadius = '50%';
+    colorDot.style.background = s.css;
+    left.appendChild(colorDot);
+
+    var nameText = document.createElement('span');
+    nameText.textContent = capitalize(s.color);
+    left.appendChild(nameText);
+
+    // Stress bar
+    var stressContainer = document.createElement('span');
+    stressContainer.style.display = 'inline-flex';
+    stressContainer.style.alignItems = 'center';
+    stressContainer.style.gap = '4px';
+    stressContainer.style.marginLeft = '6px';
+
+    var stressLabel = document.createElement('span');
+    stressLabel.style.fontSize = '0.75rem';
+    stressLabel.style.opacity = '0.7';
+    stressLabel.textContent = 'stress:';
+    stressContainer.appendChild(stressLabel);
+
+    var stressBar = document.createElement('span');
+    stressBar.style.display = 'inline-block';
+    stressBar.style.width = '50px';
+    stressBar.style.height = '8px';
+    stressBar.style.background = 'rgba(255,255,255,0.1)';
+    stressBar.style.borderRadius = '4px';
+    stressBar.style.overflow = 'hidden';
+
+    var stressFill = document.createElement('span');
+    stressFill.style.display = 'block';
+    stressFill.style.height = '100%';
+    stressFill.style.width = Math.min(100, (snail.stress / STRESS_MAX) * 100) + '%';
+    stressFill.style.background = snail.stress >= 7 ? '#e74c3c' : snail.stress >= 4 ? '#f39c12' : '#2ecc71';
+    stressFill.style.borderRadius = '4px';
+    stressFill.style.transition = 'width 0.3s';
+    stressBar.appendChild(stressFill);
+    stressContainer.appendChild(stressBar);
+
+    var stressNum = document.createElement('span');
+    stressNum.style.fontSize = '0.75rem';
+    stressNum.style.fontWeight = '700';
+    stressNum.textContent = snail.stress + '/' + STRESS_MAX;
+    if (snail.stress >= 7) stressNum.style.color = '#e74c3c';
+    stressContainer.appendChild(stressNum);
+
+    left.appendChild(stressContainer);
+    row.appendChild(left);
+
+    // Massage button — show for each player who manages this snail
+    var manager = getMajorityShareholder(s.color);
+    if (manager && snail.stress > 0) {
+      var massBtn = document.createElement('button');
+      massBtn.style.fontSize = '0.75rem';
+      massBtn.style.padding = '4px 10px';
+      massBtn.style.borderRadius = '6px';
+      massBtn.style.border = 'none';
+      massBtn.style.background = '#2ecc71';
+      massBtn.style.color = '#fff';
+      massBtn.style.cursor = 'pointer';
+      massBtn.style.fontWeight = '600';
+      massBtn.textContent = escapeHTML(manager.name) + ': Massage ($' + MASSAGE_COST + ')';
+      var playerIdx = state.players.indexOf(manager);
+      if (!canAfford(manager, MASSAGE_COST)) {
+        massBtn.disabled = true;
+        massBtn.style.opacity = '0.4';
+        massBtn.style.cursor = 'default';
+      }
+      (function(pi, sc) {
+        massBtn.addEventListener('click', function() {
+          if (massageSnail(pi, sc)) {
+            renderMassageSection();
+            renderRaceStandings();
+          }
+        });
+      })(playerIdx, s.color);
+      row.appendChild(massBtn);
+    }
+
+    section.appendChild(row);
   });
 }
 
