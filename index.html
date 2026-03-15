@@ -521,13 +521,13 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
       <div class="snail-picker" id="share-picker"></div>
     </div>
     <div id="drug-tab" style="display:none">
-      <div class="multiplier-badge" style="color:#e74c3c">Drug a snail — doubles next roll!</div>
+      <div class="multiplier-badge" style="color:#e74c3c">Drug a snail — $5, doubles next roll!</div>
       <div class="snail-picker" id="drug-picker"></div>
     </div>
     <div class="action-btns">
       <button class="btn-bet" id="btn-bet">Place Bet</button>
       <button class="btn-share" id="btn-share" style="display:none">Buy Share ($10)</button>
-      <button class="btn-drug" id="btn-drug" style="display:none">Give Drugs</button>
+      <button class="btn-drug" id="btn-drug" style="display:none">Give Drugs ($5)</button>
       <button class="btn-skip" id="btn-skip">Skip &amp; Roll</button>
     </div>
   </div>
@@ -582,7 +582,13 @@ const SHARE_COST = 10;
 const MAX_SHARES_PER_SNAIL = 5;
 const TOTAL_RACES = 3;
 const DEBT_FLOOR = -100;
+const DRUG_COST = 5;
+const DRUG_SHOP_PAYOUT = 5;
 const SHARE_PAYOUTS = { 1: 30, 2: 20, 3: 10 };
+
+// Shops that players can own shares in (between-race purchasing is future work).
+// For now, drug shop shares can be tracked but there's no way to buy them yet.
+const SHOPS = ['drugShop'];
 
 function escapeHTML(str) {
   const div = document.createElement('div');
@@ -601,7 +607,7 @@ let activeTab = 'bet'; // 'bet', 'share', or 'drug'
 function initGame(playerNames) {
   state = {
     players: playerNames.map(function(name) {
-      return { name: name, coins: STARTING_COINS, bets: [], shares: {} };
+      return { name: name, coins: STARTING_COINS, bets: [], shares: {}, shopShares: {} };
     }),
     snails: SNAILS.map(function(s) {
       return { color: s.color, label: s.label, css: s.css, position: 0 };
@@ -713,13 +719,24 @@ function buyShare(playerIndex, snailColor) {
 }
 
 // Drug a snail — only the manager (majority shareholder) can do this.
-// Doubles the snail's movement on the very next roll, then wears off.
+// Costs DRUG_COST credits. Doubles the snail's movement on the immediately
+// following roll only (hit or miss), then the effect clears.
+// Each drug shop shareholder receives DRUG_SHOP_PAYOUT credits per purchase.
 function drugSnail(playerIndex, snailColor) {
   var player = state.players[playerIndex];
   var manager = getMajorityShareholder(snailColor);
   if (!manager || manager !== player) return false;
-  if (state.drugged[snailColor]) return false; // already drugged
+  if (state.drugged[snailColor]) return false;
+  if (!canAfford(player, DRUG_COST)) return false;
+  player.coins -= DRUG_COST;
   state.drugged[snailColor] = true;
+  // Pay drug shop shareholders
+  state.players.forEach(function(p) {
+    var shares = p.shopShares['drugShop'] || 0;
+    if (shares > 0) {
+      p.coins += DRUG_SHOP_PAYOUT * shares;
+    }
+  });
   return true;
 }
 
@@ -958,7 +975,7 @@ function renderBettingPanel() {
       drugTab.style.display = '';
       btnDrug.style.display = '';
       renderDrugPicker();
-      btnDrug.disabled = !selectedSnail || state.drugged[selectedSnail];
+      btnDrug.disabled = !selectedSnail || state.drugged[selectedSnail] || !canAfford(player, DRUG_COST);
     }
   } else {
     panel.style.display = 'none';
