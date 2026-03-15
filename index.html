@@ -412,6 +412,8 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
 
 .btn-share { background: #3498db; color: #fff; }
 .btn-share:disabled { background: #555; opacity: 0.6; }
+.btn-drug { background: #e74c3c; color: #fff; }
+.btn-drug:disabled { background: #555; opacity: 0.6; }
 
 .negative-coins { color: #e74c3c; }
 
@@ -503,6 +505,7 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
     <div class="action-tabs" id="action-tabs">
       <button class="active" data-tab="bet">Place Bet</button>
       <button data-tab="share">Buy Share</button>
+      <button data-tab="drug" style="display:none">Give Drugs</button>
     </div>
     <div id="bet-tab">
       <div class="multiplier-badge" id="multiplier-badge">BET — 5x payout!</div>
@@ -517,9 +520,14 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
       <div class="multiplier-badge">Buy a share — $10 each</div>
       <div class="snail-picker" id="share-picker"></div>
     </div>
+    <div id="drug-tab" style="display:none">
+      <div class="multiplier-badge" style="color:#e74c3c">Drug a snail — doubles next roll!</div>
+      <div class="snail-picker" id="drug-picker"></div>
+    </div>
     <div class="action-btns">
       <button class="btn-bet" id="btn-bet">Place Bet</button>
       <button class="btn-share" id="btn-share" style="display:none">Buy Share ($10)</button>
+      <button class="btn-drug" id="btn-drug" style="display:none">Give Drugs</button>
       <button class="btn-skip" id="btn-skip">Skip &amp; Roll</button>
     </div>
   </div>
@@ -586,7 +594,7 @@ let state = null;
 let selectedSnail = null;
 let wager = MIN_WAGER;
 let animating = false;
-let activeTab = 'bet'; // 'bet' or 'share'
+let activeTab = 'bet'; // 'bet', 'share', or 'drug'
 
 // ── State management ──
 
@@ -599,6 +607,7 @@ function initGame(playerNames) {
       return { color: s.color, label: s.label, css: s.css, position: 0 };
     }),
     snailShares: {},
+    drugged: {},
     currentPlayerIndex: 0,
     round: 1,
     raceNumber: 1,
@@ -607,7 +616,7 @@ function initGame(playerNames) {
     turnPhase: 'bet',
     raceResults: [],
   };
-  SNAILS.forEach(function(s) { state.snailShares[s.color] = 0; });
+  SNAILS.forEach(function(s) { state.snailShares[s.color] = 0; state.drugged[s.color] = false; });
   selectedSnail = null;
   wager = MIN_WAGER;
   activeTab = 'bet';
@@ -619,7 +628,7 @@ function resetForNextRace() {
     p.bets = [];
     p.shares = {};
   });
-  SNAILS.forEach(function(s) { state.snailShares[s.color] = 0; });
+  SNAILS.forEach(function(s) { state.snailShares[s.color] = 0; state.drugged[s.color] = false; });
   state.raceNumber++;
   state.round = 1;
   state.currentPlayerIndex = 0;
@@ -654,8 +663,13 @@ function moveSnails(dieIndices) {
     moves[idx] = (moves[idx] || 0) + 1;
   });
   Object.keys(moves).forEach(function(idx) {
-    state.snails[idx].position = Math.min(state.snails[idx].position + moves[idx], TRACK_LENGTH);
+    var snail = state.snails[idx];
+    var spaces = moves[idx];
+    if (state.drugged[snail.color]) spaces *= 2;
+    snail.position = Math.min(snail.position + spaces, TRACK_LENGTH);
   });
+  // Clear all drug effects after each roll
+  SNAILS.forEach(function(s) { state.drugged[s.color] = false; });
 }
 
 // Returns sorted array of all snails by finish position (1st, 2nd, 3rd...)
@@ -695,6 +709,17 @@ function buyShare(playerIndex, snailColor) {
   player.coins -= SHARE_COST;
   player.shares[snailColor] = (player.shares[snailColor] || 0) + 1;
   state.snailShares[snailColor] = totalForSnail + 1;
+  return true;
+}
+
+// Drug a snail — only the manager (majority shareholder) can do this.
+// Doubles the snail's movement on the very next roll, then wears off.
+function drugSnail(playerIndex, snailColor) {
+  var player = state.players[playerIndex];
+  var manager = getMajorityShareholder(snailColor);
+  if (!manager || manager !== player) return false;
+  if (state.drugged[snailColor]) return false; // already drugged
+  state.drugged[snailColor] = true;
   return true;
 }
 
@@ -891,30 +916,49 @@ function renderBettingPanel() {
     // Tab state
     var betTab = document.getElementById('bet-tab');
     var shareTab = document.getElementById('share-tab');
+    var drugTab = document.getElementById('drug-tab');
     var btnBet = document.getElementById('btn-bet');
     var btnShare = document.getElementById('btn-share');
+    var btnDrug = document.getElementById('btn-drug');
+
+    // Show/hide the drug tab button based on whether the player manages any snail
+    var drugTabBtn = document.querySelector('#action-tabs button[data-tab="drug"]');
+    var managedSnails = getManagedSnails(player);
+    if (drugTabBtn) {
+      drugTabBtn.style.display = managedSnails.length > 0 ? '' : 'none';
+    }
+    // If player lost manager status while on drug tab, switch back to bet
+    if (activeTab === 'drug' && managedSnails.length === 0) activeTab = 'bet';
 
     document.querySelectorAll('#action-tabs button').forEach(function(b) {
       b.classList.toggle('active', b.dataset.tab === activeTab);
     });
 
+    betTab.style.display = 'none';
+    shareTab.style.display = 'none';
+    drugTab.style.display = 'none';
+    btnBet.style.display = 'none';
+    btnShare.style.display = 'none';
+    btnDrug.style.display = 'none';
+
     if (activeTab === 'bet') {
       betTab.style.display = '';
-      shareTab.style.display = 'none';
       btnBet.style.display = '';
-      btnShare.style.display = 'none';
       renderMultiplier();
       renderSnailPicker();
       document.getElementById('wager-amount').textContent = wager;
       btnBet.disabled = !selectedSnail || !canAfford(player, wager) || wager < MIN_WAGER;
-    } else {
-      betTab.style.display = 'none';
+    } else if (activeTab === 'share') {
       shareTab.style.display = '';
-      btnBet.style.display = 'none';
       btnShare.style.display = '';
       renderSharePicker();
       btnShare.disabled = !selectedSnail || !canAfford(player, SHARE_COST)
         || (state.snailShares[selectedSnail] || 0) >= MAX_SHARES_PER_SNAIL;
+    } else if (activeTab === 'drug') {
+      drugTab.style.display = '';
+      btnDrug.style.display = '';
+      renderDrugPicker();
+      btnDrug.disabled = !selectedSnail || state.drugged[selectedSnail];
     }
   } else {
     panel.style.display = 'none';
@@ -958,6 +1002,49 @@ function renderSharePicker() {
 
     btn.addEventListener('click', function() {
       if (totalSold < MAX_SHARES_PER_SNAIL) {
+        selectedSnail = s.color;
+        renderBettingPanel();
+      }
+    });
+    picker.appendChild(btn);
+  });
+}
+
+// Returns list of snail colors the player is majority shareholder of
+function getManagedSnails(player) {
+  var managed = [];
+  SNAILS.forEach(function(s) {
+    var mgr = getMajorityShareholder(s.color);
+    if (mgr === player) managed.push(s.color);
+  });
+  return managed;
+}
+
+function renderDrugPicker() {
+  var picker = document.getElementById('drug-picker');
+  picker.textContent = '';
+  var player = state.players[state.currentPlayerIndex];
+  var managed = getManagedSnails(player);
+  SNAILS.forEach(function(s) {
+    var isManaged = managed.indexOf(s.color) !== -1;
+    var btn = document.createElement('button');
+    btn.className = 'snail-pick-btn' + (selectedSnail === s.color ? ' selected' : '');
+    btn.style.background = s.css;
+    btn.disabled = !isManaged || state.drugged[s.color];
+
+    var emoji = document.createElement('span');
+    emoji.textContent = '\u{1F40C}';
+    btn.appendChild(emoji);
+
+    if (isManaged) {
+      var label = document.createElement('span');
+      label.className = 'share-count';
+      label.textContent = state.drugged[s.color] ? 'high' : 'mgr';
+      btn.appendChild(label);
+    }
+
+    btn.addEventListener('click', function() {
+      if (isManaged && !state.drugged[s.color]) {
         selectedSnail = s.color;
         renderBettingPanel();
       }
@@ -1124,6 +1211,15 @@ function doPlaceBet() {
 function doBuyShare() {
   if (animating || !selectedSnail) return;
   var ok = buyShare(state.currentPlayerIndex, selectedSnail);
+  if (!ok) return;
+  state.turnPhase = 'rolling';
+  renderAll();
+  doRoll();
+}
+
+function doDrugSnail() {
+  if (animating || !selectedSnail) return;
+  var ok = drugSnail(state.currentPlayerIndex, selectedSnail);
   if (!ok) return;
   state.turnPhase = 'rolling';
   renderAll();
@@ -1425,6 +1521,7 @@ document.getElementById('wager-up').addEventListener('click', function() {
 
 document.getElementById('btn-bet').addEventListener('click', doPlaceBet);
 document.getElementById('btn-share').addEventListener('click', doBuyShare);
+document.getElementById('btn-drug').addEventListener('click', doDrugSnail);
 document.getElementById('btn-skip').addEventListener('click', doSkipAndRoll);
 
 </script>
