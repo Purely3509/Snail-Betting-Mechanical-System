@@ -29,7 +29,7 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-#setup-screen, #game-screen, #gameover-screen, #race-results-screen {
+#setup-screen, #game-screen, #gameover-screen, #race-results-screen, #downtime-screen {
   display: none;
   flex-direction: column;
   align-items: center;
@@ -37,7 +37,7 @@ body {
   max-width: 500px;
   margin: 0 auto;
 }
-#setup-screen.active, #game-screen.active, #gameover-screen.active, #race-results-screen.active {
+#setup-screen.active, #game-screen.active, #gameover-screen.active, #race-results-screen.active, #downtime-screen.active {
   display: flex;
 }
 
@@ -98,6 +98,7 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
   margin-top: 8px;
 }
 .btn-primary:active { background: #2563eb; }
+.btn-primary:disabled { background: #555; opacity: 0.6; cursor: default; }
 
 #game-screen { padding: 10px; max-width: 600px; }
 
@@ -380,6 +381,7 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
   display: flex;
   gap: 6px;
   margin-bottom: 10px;
+  flex-wrap: wrap;
 }
 .action-tabs button {
   flex: 1;
@@ -389,9 +391,10 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
   color: var(--text);
   border-radius: 8px;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 600;
   min-height: 44px;
+  min-width: 70px;
 }
 .action-tabs button.active {
   background: var(--accent);
@@ -414,6 +417,8 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
 .btn-share:disabled { background: #555; opacity: 0.6; }
 .btn-drug { background: #e74c3c; color: #fff; }
 .btn-drug:disabled { background: #555; opacity: 0.6; }
+.btn-market { background: #9b59b6; color: #fff; }
+.btn-market:disabled { background: #555; opacity: 0.6; }
 
 .negative-coins { color: #e74c3c; }
 
@@ -461,6 +466,151 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
   color: #e74c3c;
   font-weight: 600;
 }
+
+/* ── Tooltip ── */
+#game-tooltip {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  max-width: 280px;
+  padding: 10px 14px;
+  background: #222;
+  color: #eee;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+  pointer-events: none;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+#game-tooltip.visible { display: block; }
+
+/* ── Profit Panel ── */
+#profit-panel {
+  width: 100%;
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+#profit-toggle {
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 4px 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.profit-snail-section {
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.profit-snail-section:last-child { border-bottom: none; }
+.profit-snail-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  font-size: 0.85rem;
+}
+.profit-detail {
+  padding-left: 20px;
+  opacity: 0.85;
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+/* ── Downtime Screen ── */
+#downtime-screen { padding-top: 20px; }
+
+.downtime-player-panel {
+  width: 100%;
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 10px;
+}
+.downtime-player-panel h3 {
+  font-size: 0.95rem;
+  margin-bottom: 10px;
+}
+.downtime-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.downtime-action-btn {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid var(--accent);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 48px;
+  text-align: left;
+}
+.downtime-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.downtime-action-btn.selected-action {
+  background: var(--accent);
+  border-color: #3a86ff;
+}
+.downtime-sub-panel {
+  background: rgba(255,255,255,0.05);
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 8px;
+}
+.downtime-submitted {
+  text-align: center;
+  padding: 16px;
+  font-size: 0.95rem;
+  opacity: 0.8;
+}
+.downtime-result {
+  background: rgba(255,255,255,0.05);
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 8px;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+/* ── Market ── */
+.market-listing {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.market-listing:last-child { border-bottom: none; }
+.market-listing-info {
+  font-size: 0.85rem;
+}
+.market-buy-btn {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 8px;
+  background: #9b59b6;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  min-height: 36px;
+}
+.market-buy-btn:disabled {
+  background: #555;
+  opacity: 0.5;
+  cursor: default;
+}
 </style>
 </head>
 <body>
@@ -503,9 +653,10 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
 
   <div class="betting-panel" id="betting-panel">
     <div class="action-tabs" id="action-tabs">
-      <button class="active" data-tab="bet">Place Bet</button>
-      <button data-tab="share">Buy Share</button>
-      <button data-tab="drug" style="display:none">Give Drugs</button>
+      <button class="active" data-tab="bet" data-tooltip="Wager coins on a snail to win. Earlier bets pay better: 5x/3x/2x/1.5x based on leading snail's position.">Place Bet</button>
+      <button data-tab="share" data-tooltip="Buy ownership in a snail ($10). Top 3 finishers pay $30/$20/$10 per share. Majority holder becomes manager.">Buy Share</button>
+      <button data-tab="drug" style="display:none" data-tooltip="Manager only. Doubles snail's next roll movement. +1 stress. Stress at 10 = eliminated. Colombia shareholders earn $5/share.">Colombia</button>
+      <button data-tab="market" data-tooltip="Browse shares listed for sale by other players, or list your own shares on the open market.">Market</button>
     </div>
     <div id="bet-tab">
       <div class="multiplier-badge" id="multiplier-badge">BET — 5x payout!</div>
@@ -521,14 +672,20 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
       <div class="snail-picker" id="share-picker"></div>
     </div>
     <div id="drug-tab" style="display:none">
-      <div class="multiplier-badge" style="color:#e74c3c">Drug a snail — $5, doubles next roll!</div>
+      <div class="multiplier-badge" style="color:#e74c3c">Stimulate with Chemicals — $5, doubles next roll!</div>
       <div class="snail-picker" id="drug-picker"></div>
     </div>
+    <div id="market-tab" style="display:none">
+      <div class="multiplier-badge" style="color:#9b59b6">Open Market</div>
+      <div id="market-listings-race"></div>
+      <div id="market-sell-section" style="margin-top:10px"></div>
+    </div>
     <div class="action-btns">
-      <button class="btn-bet" id="btn-bet">Place Bet</button>
-      <button class="btn-share" id="btn-share" style="display:none">Buy Share ($10)</button>
-      <button class="btn-drug" id="btn-drug" style="display:none">Give Drugs ($5)</button>
-      <button class="btn-skip" id="btn-skip">Skip &amp; Roll</button>
+      <button class="btn-bet" id="btn-bet" data-tooltip="Confirm your bet on the selected snail at the current wager and multiplier.">Place Bet</button>
+      <button class="btn-share" id="btn-share" style="display:none" data-tooltip="Purchase one share of the selected snail for $10.">Buy Share ($10)</button>
+      <button class="btn-drug" id="btn-drug" style="display:none" data-tooltip="Stimulate your managed snail with chemicals ($5). Doubles its next movement but adds stress.">Stimulate ($5)</button>
+      <button class="btn-market" id="btn-buy-listing" style="display:none">Buy Selected</button>
+      <button class="btn-skip" id="btn-skip" data-tooltip="Take no action this turn and roll the dice to advance snails.">Skip &amp; Roll</button>
     </div>
   </div>
 
@@ -540,6 +697,12 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
     <div class="section-label">Standings</div>
     <div id="standings"></div>
   </div>
+
+  <!-- Who Profits Panel -->
+  <div id="profit-panel">
+    <div id="profit-toggle">Who Profits &#9660;</div>
+    <div id="profit-content" style="display:none"></div>
+  </div>
 </div>
 
 <!-- RACE RESULTS SCREEN -->
@@ -549,7 +712,18 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
   <div id="race-payouts" class="race-result-section"></div>
   <div id="race-massage-section" class="race-result-section"></div>
   <div id="race-standings" class="race-result-section"></div>
-  <button class="btn-primary" id="next-race-btn">Next Race</button>
+  <button class="btn-primary" id="next-race-btn">Continue to Downtime</button>
+</div>
+
+<!-- DOWNTIME SCREEN -->
+<div id="downtime-screen">
+  <h1 id="downtime-title">Between Races</h1>
+  <div id="downtime-players"></div>
+  <div id="downtime-market" class="race-result-section" style="display:none">
+    <h3>Open Market</h3>
+    <div id="downtime-market-listings"></div>
+  </div>
+  <button class="btn-primary" id="start-next-race-btn" disabled>Start Next Race (waiting for all players...)</button>
 </div>
 
 <!-- GAME OVER SCREEN -->
@@ -561,12 +735,15 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
   <button class="btn-primary" id="play-again-btn">Play Again</button>
 </div>
 
+<!-- Tooltip element -->
+<div id="game-tooltip"></div>
+
 <script>
 // ═══════════════════════════════════
 //  SNAIL BETTING — GAME ENGINE
 // ═══════════════════════════════════
 
-const SNAILS = [
+var SNAILS = [
   { color: 'red',    label: 'R', css: '#e74c3c' },
   { color: 'blue',   label: 'B', css: '#3498db' },
   { color: 'green',  label: 'G', css: '#2ecc71' },
@@ -575,43 +752,49 @@ const SNAILS = [
   { color: 'orange', label: 'O', css: '#e67e22' },
 ];
 
-const TRACK_LENGTH = 10;
-const STARTING_COINS = 100;
-const MIN_WAGER = 10;
-const WAGER_STEP = 10;
-const SHARE_COST = 10;
-const MAX_SHARES_PER_SNAIL = 5;
-const TOTAL_RACES = 3;
-const DEBT_FLOOR = -100;
-const DRUG_COST = 5;
-const DRUG_SHOP_PAYOUT = 5;
-const MASSAGE_COST = 5;
-const MASSAGE_STRESS_RELIEF = 2;
-const MASSAGE_SHOP_PAYOUT = 10;
-const STRESS_MAX = 10;
-const SHARE_PAYOUTS = { 1: 30, 2: 20, 3: 10 };
+var TRACK_LENGTH = 10;
+var STARTING_COINS = 100;
+var MIN_WAGER = 10;
+var WAGER_STEP = 10;
+var SHARE_COST = 10;
+var MAX_SHARES_PER_SNAIL = 5;
+var TOTAL_RACES = 3;
+var DEBT_FLOOR = -100;
+var DRUG_COST = 5;
+var DRUG_SHOP_PAYOUT = 5;
+var MASSAGE_COST = 5;
+var MASSAGE_STRESS_RELIEF = 2;
+var MASSAGE_SHOP_PAYOUT = 10;
+var STRESS_MAX = 10;
+var SHARE_PAYOUTS = { 1: 30, 2: 20, 3: 10 };
+var TRAIN_COST = 5;
+var GYM_SHOP_PAYOUT = 5;
 
-// Shops that players can own shares in (between-race purchasing is future work).
-const SHOPS = ['drugShop', 'massageParlor'];
+// Shops that players can own shares in
+var SHOPS = ['colombia', 'massageParlor', 'gym'];
+var SHOP_NAMES = { colombia: 'Colombia', massageParlor: 'Massage Parlor', gym: 'Gym' };
 
 function escapeHTML(str) {
-  const div = document.createElement('div');
+  var div = document.createElement('div');
   div.textContent = str;
   return div.textContent;
 }
 
-let state = null;
-let selectedSnail = null;
-let wager = MIN_WAGER;
-let animating = false;
-let activeTab = 'bet'; // 'bet', 'share', or 'drug'
+var state = null;
+var selectedSnail = null;
+var wager = MIN_WAGER;
+var animating = false;
+var activeTab = 'bet'; // 'bet', 'share', 'drug', 'market'
+var profitPanelOpen = false;
 
 // ── State management ──
 
 function initGame(playerNames) {
   state = {
     players: playerNames.map(function(name) {
-      return { name: name, coins: STARTING_COINS, bets: [], shares: {}, shopShares: {} };
+      var shopShares = {};
+      SHOPS.forEach(function(s) { shopShares[s] = 0; });
+      return { name: name, coins: STARTING_COINS, bets: [], shares: {}, shopShares: shopShares };
     }),
     snails: SNAILS.map(function(s) {
       return { color: s.color, label: s.label, css: s.css, position: 0, stress: 0 };
@@ -626,8 +809,20 @@ function initGame(playerNames) {
     lastRoll: null,
     turnPhase: 'bet',
     raceResults: [],
+    trainingBonus: {},
+    marketListings: [],
+    nextListingId: 1,
+    downtimeActions: {},
+    downtimeSubmitted: {},
+    downtimeEliminated: {},
   };
-  SNAILS.forEach(function(s) { state.snailShares[s.color] = 0; state.drugged[s.color] = false; state.eliminated[s.color] = false; });
+  SNAILS.forEach(function(s) {
+    state.snailShares[s.color] = 0;
+    state.drugged[s.color] = false;
+    state.eliminated[s.color] = false;
+    state.trainingBonus[s.color] = 0;
+    state.downtimeEliminated[s.color] = false;
+  });
   selectedSnail = null;
   wager = MIN_WAGER;
   activeTab = 'bet';
@@ -641,9 +836,25 @@ function resetForNextRace() {
   });
   state.players.forEach(function(p) {
     p.bets = [];
-    p.shares = {};
+    // Shares persist across races (not cleared)
   });
-  SNAILS.forEach(function(s) { state.snailShares[s.color] = 0; state.drugged[s.color] = false; state.eliminated[s.color] = false; });
+  SNAILS.forEach(function(s) {
+    state.drugged[s.color] = false;
+    // Snails eliminated during downtime (e.g. training stress) stay eliminated for this race
+    // Only clear elimination for snails that were eliminated from previous race
+    if (state.eliminated[s.color] && !state.downtimeEliminated[s.color]) {
+      state.eliminated[s.color] = false;
+    }
+  });
+  // Reset downtime tracking
+  state.downtimeActions = {};
+  state.downtimeSubmitted = {};
+  state.players.forEach(function(p, i) {
+    state.downtimeActions[i] = null;
+    state.downtimeSubmitted[i] = false;
+  });
+  // Clear downtime elimination tracking after we've used it above
+  SNAILS.forEach(function(s) { state.downtimeEliminated[s.color] = false; });
   state.raceNumber++;
   state.round = 1;
   state.currentPlayerIndex = 0;
@@ -679,8 +890,8 @@ function moveSnails(dieIndices) {
   });
   Object.keys(moves).forEach(function(idx) {
     var snail = state.snails[idx];
-    if (state.eliminated[snail.color]) return; // eliminated snails don't move
-    var spaces = moves[idx];
+    if (state.eliminated[snail.color]) return;
+    var spaces = moves[idx] + (state.trainingBonus[snail.color] || 0);
     if (state.drugged[snail.color]) spaces *= 2;
     snail.position = Math.min(snail.position + spaces, TRACK_LENGTH);
   });
@@ -688,8 +899,6 @@ function moveSnails(dieIndices) {
   SNAILS.forEach(function(s) { state.drugged[s.color] = false; });
 }
 
-// Returns sorted array of all snails by finish position (1st, 2nd, 3rd...)
-// Eliminated snails always rank last.
 function getRaceRanking() {
   var sorted = state.snails.slice().sort(function(a, b) {
     var aElim = state.eliminated[a.color] ? 1 : 0;
@@ -734,10 +943,7 @@ function buyShare(playerIndex, snailColor) {
   return true;
 }
 
-// Drug a snail — only the manager (majority shareholder) can do this.
-// Costs DRUG_COST credits. Doubles the snail's movement on the immediately
-// following roll only (hit or miss), then the effect clears.
-// Each drug shop shareholder receives DRUG_SHOP_PAYOUT credits per purchase.
+// Stimulate a snail with chemicals — only the manager (majority shareholder) can do this.
 function drugSnail(playerIndex, snailColor) {
   var player = state.players[playerIndex];
   var manager = getMajorityShareholder(snailColor);
@@ -747,16 +953,15 @@ function drugSnail(playerIndex, snailColor) {
   if (!canAfford(player, DRUG_COST)) return false;
   player.coins -= DRUG_COST;
   state.drugged[snailColor] = true;
-  // Add stress from drug use
   var snail = state.snails.find(function(s) { return s.color === snailColor; });
   snail.stress++;
   if (snail.stress >= STRESS_MAX) {
     state.eliminated[snailColor] = true;
     state.drugged[snailColor] = false;
   }
-  // Pay drug shop shareholders
+  // Pay Colombia shareholders
   state.players.forEach(function(p) {
-    var shares = p.shopShares['drugShop'] || 0;
+    var shares = p.shopShares['colombia'] || 0;
     if (shares > 0) {
       p.coins += DRUG_SHOP_PAYOUT * shares;
     }
@@ -765,8 +970,6 @@ function drugSnail(playerIndex, snailColor) {
 }
 
 // Massage a snail — between-race manager action.
-// Costs MASSAGE_COST credits. Removes MASSAGE_STRESS_RELIEF stress (min 0).
-// Each massage parlor shareholder receives MASSAGE_SHOP_PAYOUT credits per share.
 function massageSnail(playerIndex, snailColor) {
   var player = state.players[playerIndex];
   var manager = getMajorityShareholder(snailColor);
@@ -783,6 +986,100 @@ function massageSnail(playerIndex, snailColor) {
       p.coins += MASSAGE_SHOP_PAYOUT * shares;
     }
   });
+  return true;
+}
+
+// Train a snail — between-race action for any shareholder.
+function trainSnail(playerIndex, snailColor) {
+  var player = state.players[playerIndex];
+  if ((player.shares[snailColor] || 0) < 1) return { success: false };
+  if (state.eliminated[snailColor]) return { success: false };
+  if (!canAfford(player, TRAIN_COST)) return { success: false };
+  player.coins -= TRAIN_COST;
+  // Roll 1 die
+  var roll = Math.floor(Math.random() * 6);
+  var rolledColor = SNAILS[roll].color;
+  var snailIndex = SNAILS.findIndex(function(s) { return s.color === snailColor; });
+  var trained = (roll === snailIndex);
+  if (trained) {
+    state.trainingBonus[snailColor] = (state.trainingBonus[snailColor] || 0) + 1;
+  }
+  // Always +1 stress
+  var snail = state.snails.find(function(s) { return s.color === snailColor; });
+  snail.stress++;
+  var broken = false;
+  if (snail.stress >= STRESS_MAX) {
+    state.eliminated[snailColor] = true;
+    state.downtimeEliminated[snailColor] = true;
+    broken = true;
+  }
+  // Pay gym shareholders
+  state.players.forEach(function(p) {
+    var shares = p.shopShares['gym'] || 0;
+    if (shares > 0) {
+      p.coins += GYM_SHOP_PAYOUT * shares;
+    }
+  });
+  return { success: true, rolledColor: rolledColor, trained: trained, broken: broken };
+}
+
+// List a share for sale on the open market
+function listShareForSale(playerIndex, assetType, assetKey, price) {
+  var player = state.players[playerIndex];
+  if (price < 1) return false;
+  if (assetType === 'snail') {
+    if ((player.shares[assetKey] || 0) < 1) return false;
+    player.shares[assetKey]--;
+    state.snailShares[assetKey] = Math.max(0, (state.snailShares[assetKey] || 0) - 1);
+  } else if (assetType === 'shop') {
+    if ((player.shopShares[assetKey] || 0) < 1) return false;
+    player.shopShares[assetKey]--;
+  } else {
+    return false;
+  }
+  state.marketListings.push({
+    id: state.nextListingId++,
+    sellerId: playerIndex,
+    assetType: assetType,
+    assetKey: assetKey,
+    price: price,
+  });
+  return true;
+}
+
+// Buy a listing from the open market
+function buyListing(buyerIndex, listingId) {
+  var listing = null;
+  var listingIdx = -1;
+  for (var i = 0; i < state.marketListings.length; i++) {
+    if (state.marketListings[i].id === listingId) {
+      listing = state.marketListings[i];
+      listingIdx = i;
+      break;
+    }
+  }
+  if (!listing) return false;
+  var buyer = state.players[buyerIndex];
+  if (buyerIndex === listing.sellerId) return false;
+  if (!canAfford(buyer, listing.price)) return false;
+  buyer.coins -= listing.price;
+  state.players[listing.sellerId].coins += listing.price;
+  if (listing.assetType === 'snail') {
+    buyer.shares[listing.assetKey] = (buyer.shares[listing.assetKey] || 0) + 1;
+    state.snailShares[listing.assetKey] = (state.snailShares[listing.assetKey] || 0) + 1;
+  } else if (listing.assetType === 'shop') {
+    buyer.shopShares[listing.assetKey] = (buyer.shopShares[listing.assetKey] || 0) + 1;
+  }
+  state.marketListings.splice(listingIdx, 1);
+  return true;
+}
+
+// Buy a shop share
+function buyShopShare(playerIndex, shopKey) {
+  var player = state.players[playerIndex];
+  if (!canAfford(player, SHARE_COST)) return false;
+  player.coins -= SHARE_COST;
+  player.shopShares[shopKey] = (player.shopShares[shopKey] || 0) + 1;
   return true;
 }
 
@@ -815,7 +1112,6 @@ function resolveBets(winningColor) {
 }
 
 function resolveShares(ranking) {
-  // ranking is sorted array: [1st snail, 2nd snail, 3rd snail, ...]
   var payoutLog = [];
   for (var place = 1; place <= 3; place++) {
     var snailColor = ranking[place - 1].color;
@@ -832,10 +1128,9 @@ function resolveShares(ranking) {
   return payoutLog;
 }
 
-// Adjust stress after a race: top 3 get -1, bottom 3 get +1 (skip eliminated).
 function adjustRaceStress(ranking) {
   ranking.forEach(function(s, i) {
-    if (state.eliminated[s.color]) return; // already handled
+    if (state.eliminated[s.color]) return;
     if (i < 3) {
       s.stress = Math.max(0, s.stress - 1);
     } else {
@@ -863,6 +1158,7 @@ var SIM_RUNS = 1000;
 function simulateWinProbabilities() {
   var positions = state.snails.map(function(s) { return s.position; });
   var elim = state.snails.map(function(s) { return state.eliminated[s.color]; });
+  var bonuses = state.snails.map(function(s) { return state.trainingBonus[s.color] || 0; });
   var wins = [0, 0, 0, 0, 0, 0];
 
   for (var r = 0; r < SIM_RUNS; r++) {
@@ -871,8 +1167,8 @@ function simulateWinProbabilities() {
     while (maxIter-- > 0) {
       var d1 = Math.floor(Math.random() * 6);
       var d2 = Math.floor(Math.random() * 6);
-      if (!elim[d1]) simPos[d1] = Math.min(simPos[d1] + 1, TRACK_LENGTH);
-      if (!elim[d2]) simPos[d2] = Math.min(simPos[d2] + 1, TRACK_LENGTH);
+      if (!elim[d1]) simPos[d1] = Math.min(simPos[d1] + 1 + bonuses[d1], TRACK_LENGTH);
+      if (!elim[d2]) simPos[d2] = Math.min(simPos[d2] + 1 + bonuses[d2], TRACK_LENGTH);
 
       var best = -1;
       var bestPos = -1;
@@ -910,7 +1206,7 @@ function nextTurn() {
 // ── Rendering ──
 
 function showScreen(id) {
-  ['setup-screen', 'game-screen', 'gameover-screen', 'race-results-screen'].forEach(function(sid) {
+  ['setup-screen', 'game-screen', 'gameover-screen', 'race-results-screen', 'downtime-screen'].forEach(function(sid) {
     document.getElementById(sid).classList.remove('active');
   });
   document.getElementById(id).classList.add('active');
@@ -1005,13 +1301,14 @@ function renderBettingPanel() {
   if (state.turnPhase === 'bet') {
     panel.style.display = '';
 
-    // Tab state
     var betTab = document.getElementById('bet-tab');
     var shareTab = document.getElementById('share-tab');
     var drugTab = document.getElementById('drug-tab');
+    var marketTab = document.getElementById('market-tab');
     var btnBet = document.getElementById('btn-bet');
     var btnShare = document.getElementById('btn-share');
     var btnDrug = document.getElementById('btn-drug');
+    var btnBuyListing = document.getElementById('btn-buy-listing');
 
     // Show/hide the drug tab button based on whether the player manages any snail
     var drugTabBtn = document.querySelector('#action-tabs button[data-tab="drug"]');
@@ -1019,7 +1316,6 @@ function renderBettingPanel() {
     if (drugTabBtn) {
       drugTabBtn.style.display = managedSnails.length > 0 ? '' : 'none';
     }
-    // If player lost manager status while on drug tab, switch back to bet
     if (activeTab === 'drug' && managedSnails.length === 0) activeTab = 'bet';
 
     document.querySelectorAll('#action-tabs button').forEach(function(b) {
@@ -1029,9 +1325,11 @@ function renderBettingPanel() {
     betTab.style.display = 'none';
     shareTab.style.display = 'none';
     drugTab.style.display = 'none';
+    marketTab.style.display = 'none';
     btnBet.style.display = 'none';
     btnShare.style.display = 'none';
     btnDrug.style.display = 'none';
+    btnBuyListing.style.display = 'none';
 
     if (activeTab === 'bet') {
       betTab.style.display = '';
@@ -1051,6 +1349,9 @@ function renderBettingPanel() {
       btnDrug.style.display = '';
       renderDrugPicker();
       btnDrug.disabled = !selectedSnail || state.drugged[selectedSnail] || state.eliminated[selectedSnail] || !canAfford(player, DRUG_COST);
+    } else if (activeTab === 'market') {
+      marketTab.style.display = '';
+      renderMarketTab();
     }
   } else {
     panel.style.display = 'none';
@@ -1113,7 +1414,6 @@ function renderSharePicker() {
   });
 }
 
-// Returns list of snail colors the player is majority shareholder of
 function getManagedSnails(player) {
   var managed = [];
   SNAILS.forEach(function(s) {
@@ -1167,6 +1467,142 @@ function renderDrugPicker() {
   });
 }
 
+// ── Market Tab (in-race) ──
+
+function renderMarketTab() {
+  var listingsDiv = document.getElementById('market-listings-race');
+  listingsDiv.textContent = '';
+  var sellDiv = document.getElementById('market-sell-section');
+  sellDiv.textContent = '';
+  var player = state.players[state.currentPlayerIndex];
+  var btnBuyListing = document.getElementById('btn-buy-listing');
+  btnBuyListing.style.display = 'none';
+
+  if (state.marketListings.length === 0) {
+    var empty = document.createElement('div');
+    empty.style.opacity = '0.5';
+    empty.style.textAlign = 'center';
+    empty.style.padding = '8px';
+    empty.textContent = 'No listings on the market yet.';
+    listingsDiv.appendChild(empty);
+  } else {
+    state.marketListings.forEach(function(listing) {
+      var row = document.createElement('div');
+      row.className = 'market-listing';
+
+      var info = document.createElement('span');
+      info.className = 'market-listing-info';
+      var assetName = listing.assetType === 'snail'
+        ? capitalize(listing.assetKey) + ' snail share'
+        : SHOP_NAMES[listing.assetKey] + ' shop share';
+      var sellerName = escapeHTML(state.players[listing.sellerId].name);
+      info.textContent = assetName + ' — $' + listing.price + ' (from ' + sellerName + ')';
+      row.appendChild(info);
+
+      var buyBtn = document.createElement('button');
+      buyBtn.className = 'market-buy-btn';
+      buyBtn.textContent = 'Buy';
+      buyBtn.disabled = listing.sellerId === state.currentPlayerIndex || !canAfford(player, listing.price);
+      if (listing.assetType === 'snail' && (state.snailShares[listing.assetKey] || 0) >= MAX_SHARES_PER_SNAIL) {
+        buyBtn.disabled = true;
+      }
+      (function(lid) {
+        buyBtn.addEventListener('click', function() {
+          if (buyListing(state.currentPlayerIndex, lid)) {
+            state.turnPhase = 'rolling';
+            renderAll();
+            doRoll();
+          }
+        });
+      })(listing.id);
+      row.appendChild(buyBtn);
+      listingsDiv.appendChild(row);
+    });
+  }
+
+  // Sell section — let current player list shares for sale
+  var hasAssets = false;
+  SNAILS.forEach(function(s) { if ((player.shares[s.color] || 0) > 0) hasAssets = true; });
+  SHOPS.forEach(function(s) { if ((player.shopShares[s] || 0) > 0) hasAssets = true; });
+
+  if (hasAssets) {
+    var sellLabel = document.createElement('div');
+    sellLabel.style.fontWeight = '700';
+    sellLabel.style.fontSize = '0.85rem';
+    sellLabel.style.marginBottom = '6px';
+    sellLabel.textContent = 'Sell a Share:';
+    sellDiv.appendChild(sellLabel);
+
+    renderSellUI(sellDiv, state.currentPlayerIndex, function() {
+      state.turnPhase = 'rolling';
+      renderAll();
+      doRoll();
+    });
+  }
+}
+
+function renderSellUI(container, playerIndex, onSold) {
+  var player = state.players[playerIndex];
+  var selectEl = document.createElement('select');
+  selectEl.style.cssText = 'padding:8px;border-radius:8px;background:var(--bg);color:var(--text);border:1px solid #555;font-size:0.85rem;width:100%;margin-bottom:6px;min-height:44px;';
+
+  var defaultOpt = document.createElement('option');
+  defaultOpt.textContent = 'Select asset to sell...';
+  defaultOpt.value = '';
+  selectEl.appendChild(defaultOpt);
+
+  SNAILS.forEach(function(s) {
+    var count = player.shares[s.color] || 0;
+    if (count > 0) {
+      var opt = document.createElement('option');
+      opt.value = 'snail:' + s.color;
+      opt.textContent = capitalize(s.color) + ' snail share (own ' + count + ')';
+      selectEl.appendChild(opt);
+    }
+  });
+  SHOPS.forEach(function(s) {
+    var count = player.shopShares[s] || 0;
+    if (count > 0) {
+      var opt = document.createElement('option');
+      opt.value = 'shop:' + s;
+      opt.textContent = SHOP_NAMES[s] + ' shop share (own ' + count + ')';
+      selectEl.appendChild(opt);
+    }
+  });
+  container.appendChild(selectEl);
+
+  var priceRow = document.createElement('div');
+  priceRow.style.cssText = 'display:flex;gap:8px;align-items:center;';
+
+  var priceInput = document.createElement('input');
+  priceInput.type = 'number';
+  priceInput.min = '1';
+  priceInput.value = '10';
+  priceInput.style.cssText = 'flex:1;padding:8px;border-radius:8px;background:var(--bg);color:var(--text);border:1px solid #555;font-size:0.85rem;min-height:44px;';
+  priceInput.placeholder = 'Price $';
+  priceRow.appendChild(priceInput);
+
+  var sellBtn = document.createElement('button');
+  sellBtn.className = 'market-buy-btn';
+  sellBtn.style.background = '#e67e22';
+  sellBtn.textContent = 'List for Sale';
+  sellBtn.dataset.tooltip = 'List a share on the open market at your price. Others can buy it between races or during their turn.';
+  sellBtn.addEventListener('click', function() {
+    var val = selectEl.value;
+    if (!val) return;
+    var parts = val.split(':');
+    var assetType = parts[0];
+    var assetKey = parts[1];
+    var price = parseInt(priceInput.value, 10);
+    if (isNaN(price) || price < 1) return;
+    if (listShareForSale(playerIndex, assetType, assetKey, price)) {
+      if (onSold) onSold();
+    }
+  });
+  priceRow.appendChild(sellBtn);
+  container.appendChild(priceRow);
+}
+
 function renderInfoPanel() {
   var player = state.players[state.currentPlayerIndex];
 
@@ -1213,6 +1649,18 @@ function renderInfoPanel() {
       sharesList.appendChild(tag);
     }
   });
+  // Shop shares
+  SHOPS.forEach(function(s) {
+    var count = player.shopShares[s] || 0;
+    if (count > 0) {
+      hasShares = true;
+      var tag = document.createElement('span');
+      tag.className = 'share-tag';
+      tag.style.background = '#666';
+      tag.textContent = SHOP_NAMES[s] + ' x' + count;
+      sharesList.appendChild(tag);
+    }
+  });
   if (!hasShares) sharesList.textContent = 'None yet';
 
   // Standings
@@ -1232,6 +1680,88 @@ function renderInfoPanel() {
     row.appendChild(coinsSpan);
 
     standings.appendChild(row);
+  });
+}
+
+// ── Who Profits Panel ──
+
+function renderProfitPanel() {
+  var content = document.getElementById('profit-content');
+  content.textContent = '';
+
+  SNAILS.forEach(function(s) {
+    var snail = state.snails.find(function(sn) { return sn.color === s.color; });
+    var isElim = state.eliminated[s.color];
+
+    var section = document.createElement('div');
+    section.className = 'profit-snail-section';
+    if (isElim) section.style.opacity = '0.4';
+
+    // Header
+    var header = document.createElement('div');
+    header.className = 'profit-snail-header';
+
+    var dot = document.createElement('span');
+    dot.style.cssText = 'display:inline-block;width:10px;height:10px;border-radius:50%;background:' + s.css;
+    header.appendChild(dot);
+
+    var nameText = document.createElement('span');
+    nameText.textContent = capitalize(s.color);
+    if (isElim) nameText.textContent += ' (eliminated)';
+    else nameText.textContent += ' — pos ' + snail.position;
+    header.appendChild(nameText);
+
+    var bonus = state.trainingBonus[s.color] || 0;
+    if (bonus > 0) {
+      var bonusSpan = document.createElement('span');
+      bonusSpan.style.cssText = 'font-size:0.75rem;color:#2ecc71;font-weight:400;';
+      bonusSpan.textContent = ' (+' + bonus + ' training)';
+      header.appendChild(bonusSpan);
+    }
+
+    section.appendChild(header);
+
+    if (!isElim) {
+      var detail = document.createElement('div');
+      detail.className = 'profit-detail';
+
+      // Shares
+      var hasShareInfo = false;
+      state.players.forEach(function(p) {
+        var count = p.shares[s.color] || 0;
+        if (count > 0) {
+          hasShareInfo = true;
+          var line = document.createElement('div');
+          line.textContent = escapeHTML(p.name) + ': ' + count + ' share' + (count > 1 ? 's' : '') +
+            ' ($' + (count * SHARE_PAYOUTS[1]) + '/' + (count * SHARE_PAYOUTS[2]) + '/' + (count * SHARE_PAYOUTS[3]) + ' for 1st/2nd/3rd)';
+          detail.appendChild(line);
+        }
+      });
+
+      // Bets
+      var hasBetInfo = false;
+      state.players.forEach(function(p) {
+        p.bets.forEach(function(b) {
+          if (b.snailColor === s.color) {
+            hasBetInfo = true;
+            var line = document.createElement('div');
+            line.textContent = escapeHTML(p.name) + ': $' + b.amount + ' bet @ ' + b.multiplier + 'x = $' + Math.floor(b.amount * b.multiplier) + ' if wins';
+            detail.appendChild(line);
+          }
+        });
+      });
+
+      if (!hasShareInfo && !hasBetInfo) {
+        var none = document.createElement('div');
+        none.style.opacity = '0.5';
+        none.textContent = 'No one profits from this snail';
+        detail.appendChild(none);
+      }
+
+      section.appendChild(detail);
+    }
+
+    content.appendChild(section);
   });
 }
 
@@ -1274,6 +1804,7 @@ function renderAll() {
   renderSnails();
   renderBettingPanel();
   renderInfoPanel();
+  renderProfitPanel();
 }
 
 // ── Dice animation ──
@@ -1468,7 +1999,7 @@ function showRaceResults(ranking, shareLog, debtLog) {
     });
   }
 
-  // Massage section — managers can massage their snails between races
+  // Massage section
   renderMassageSection();
 
   // Standings after race
@@ -1506,7 +2037,6 @@ function renderMassageSection() {
   h3.textContent = 'Snail Stress & Massage';
   section.appendChild(h3);
 
-  // Show each snail's stress with massage button if player is manager
   SNAILS.forEach(function(s) {
     var snail = state.snails.find(function(sn) { return sn.color === s.color; });
     var row = document.createElement('div');
@@ -1571,38 +2101,322 @@ function renderMassageSection() {
     left.appendChild(stressContainer);
     row.appendChild(left);
 
-    // Massage button — show for each player who manages this snail
-    var manager = getMajorityShareholder(s.color);
-    if (manager && snail.stress > 0) {
-      var massBtn = document.createElement('button');
-      massBtn.style.fontSize = '0.75rem';
-      massBtn.style.padding = '4px 10px';
-      massBtn.style.borderRadius = '6px';
-      massBtn.style.border = 'none';
-      massBtn.style.background = '#2ecc71';
-      massBtn.style.color = '#fff';
-      massBtn.style.cursor = 'pointer';
-      massBtn.style.fontWeight = '600';
-      massBtn.textContent = escapeHTML(manager.name) + ': Massage ($' + MASSAGE_COST + ')';
-      var playerIdx = state.players.indexOf(manager);
-      if (!canAfford(manager, MASSAGE_COST)) {
-        massBtn.disabled = true;
-        massBtn.style.opacity = '0.4';
-        massBtn.style.cursor = 'default';
-      }
-      (function(pi, sc) {
-        massBtn.addEventListener('click', function() {
-          if (massageSnail(pi, sc)) {
-            renderMassageSection();
-            renderRaceStandings();
-          }
-        });
-      })(playerIdx, s.color);
-      row.appendChild(massBtn);
-    }
-
     section.appendChild(row);
   });
+}
+
+// ── Downtime Screen ──
+
+function showDowntimeScreen() {
+  showScreen('downtime-screen');
+  document.getElementById('downtime-title').textContent = 'Between Race ' + state.raceNumber + ' & ' + (state.raceNumber + 1);
+
+  // Init downtime tracking
+  state.players.forEach(function(p, i) {
+    state.downtimeActions[i] = null;
+    state.downtimeSubmitted[i] = false;
+  });
+
+  renderDowntimePanels();
+  renderDowntimeMarket();
+  updateStartNextRaceBtn();
+}
+
+function renderDowntimePanels() {
+  var container = document.getElementById('downtime-players');
+  container.textContent = '';
+
+  state.players.forEach(function(player, playerIdx) {
+    var panel = document.createElement('div');
+    panel.className = 'downtime-player-panel';
+    panel.id = 'downtime-panel-' + playerIdx;
+
+    var header = document.createElement('h3');
+    header.textContent = escapeHTML(player.name) + ' ($' + player.coins + ')';
+    panel.appendChild(header);
+
+    if (state.downtimeSubmitted[playerIdx]) {
+      var submitted = document.createElement('div');
+      submitted.className = 'downtime-submitted';
+      submitted.textContent = 'Action submitted!';
+      if (state.downtimeActions[playerIdx]) {
+        var resultDiv = document.createElement('div');
+        resultDiv.className = 'downtime-result';
+        resultDiv.textContent = state.downtimeActions[playerIdx].summary || '';
+        submitted.appendChild(resultDiv);
+      }
+      panel.appendChild(submitted);
+    } else {
+      renderDowntimeActionsForPlayer(panel, playerIdx);
+    }
+
+    container.appendChild(panel);
+  });
+}
+
+function renderDowntimeActionsForPlayer(panel, playerIdx) {
+  var player = state.players[playerIdx];
+  var actionsDiv = document.createElement('div');
+  actionsDiv.className = 'downtime-actions';
+
+  // 1. Massage
+  var managed = getManagedSnails(player);
+  var canMassage = false;
+  managed.forEach(function(color) {
+    var snail = state.snails.find(function(sn) { return sn.color === color; });
+    if (snail.stress > 0 && canAfford(player, MASSAGE_COST)) canMassage = true;
+  });
+
+  var massageBtn = document.createElement('button');
+  massageBtn.className = 'downtime-action-btn';
+  massageBtn.textContent = 'Massage a Snail ($' + MASSAGE_COST + ')';
+  massageBtn.dataset.tooltip = 'Manager only. Reduces stress by 2. Massage Parlor shareholders earn $' + MASSAGE_SHOP_PAYOUT + '/share dividend.';
+  massageBtn.disabled = !canMassage;
+  massageBtn.addEventListener('click', function() {
+    showDowntimeSubAction(panel, playerIdx, 'massage');
+  });
+  actionsDiv.appendChild(massageBtn);
+
+  // 2. Train
+  var canTrain = false;
+  SNAILS.forEach(function(s) {
+    if ((player.shares[s.color] || 0) > 0 && !state.eliminated[s.color] && canAfford(player, TRAIN_COST)) canTrain = true;
+  });
+
+  var trainBtn = document.createElement('button');
+  trainBtn.className = 'downtime-action-btn';
+  trainBtn.textContent = 'Train a Snail ($' + TRAIN_COST + ')';
+  trainBtn.dataset.tooltip = 'Roll 1 die \u2014 if your snail\'s color comes up, permanent +1 movement. +1 stress regardless. Gym shareholders earn $' + GYM_SHOP_PAYOUT + '/share.';
+  trainBtn.disabled = !canTrain;
+  trainBtn.addEventListener('click', function() {
+    showDowntimeSubAction(panel, playerIdx, 'train');
+  });
+  actionsDiv.appendChild(trainBtn);
+
+  // 3. Buy Shop Share
+  var buyShopBtn = document.createElement('button');
+  buyShopBtn.className = 'downtime-action-btn';
+  buyShopBtn.textContent = 'Buy Shop Share ($' + SHARE_COST + ')';
+  buyShopBtn.dataset.tooltip = 'Invest in a business. Earn dividends whenever any player uses that shop.';
+  buyShopBtn.disabled = !canAfford(player, SHARE_COST);
+  buyShopBtn.addEventListener('click', function() {
+    showDowntimeSubAction(panel, playerIdx, 'buyShop');
+  });
+  actionsDiv.appendChild(buyShopBtn);
+
+  // 4. Sell a Share
+  var hasAssets = false;
+  SNAILS.forEach(function(s) { if ((player.shares[s.color] || 0) > 0) hasAssets = true; });
+  SHOPS.forEach(function(s) { if ((player.shopShares[s] || 0) > 0) hasAssets = true; });
+
+  var sellBtn = document.createElement('button');
+  sellBtn.className = 'downtime-action-btn';
+  sellBtn.textContent = 'Sell a Share';
+  sellBtn.dataset.tooltip = 'List a share on the open market at your price. Others can buy it between races or during their turn.';
+  sellBtn.disabled = !hasAssets;
+  sellBtn.addEventListener('click', function() {
+    showDowntimeSubAction(panel, playerIdx, 'sell');
+  });
+  actionsDiv.appendChild(sellBtn);
+
+  // 5. Pass
+  var passBtn = document.createElement('button');
+  passBtn.className = 'downtime-action-btn';
+  passBtn.textContent = 'Pass (do nothing)';
+  passBtn.addEventListener('click', function() {
+    state.downtimeActions[playerIdx] = { type: 'pass', summary: 'Passed' };
+    state.downtimeSubmitted[playerIdx] = true;
+    renderDowntimePanels();
+    renderDowntimeMarket();
+    updateStartNextRaceBtn();
+  });
+  actionsDiv.appendChild(passBtn);
+
+  panel.appendChild(actionsDiv);
+}
+
+function showDowntimeSubAction(panel, playerIdx, actionType) {
+  var player = state.players[playerIdx];
+  // Remove existing sub-panel if any
+  var existing = panel.querySelector('.downtime-sub-panel');
+  if (existing) existing.remove();
+
+  var sub = document.createElement('div');
+  sub.className = 'downtime-sub-panel';
+
+  if (actionType === 'massage') {
+    var managed = getManagedSnails(player);
+    var label = document.createElement('div');
+    label.style.fontWeight = '600';
+    label.style.marginBottom = '8px';
+    label.textContent = 'Choose snail to massage:';
+    sub.appendChild(label);
+
+    var picker = document.createElement('div');
+    picker.className = 'snail-picker';
+    managed.forEach(function(color) {
+      var snail = state.snails.find(function(sn) { return sn.color === color; });
+      if (snail.stress <= 0) return;
+      var s = SNAILS.find(function(sn) { return sn.color === color; });
+      var btn = document.createElement('button');
+      btn.className = 'snail-pick-btn';
+      btn.style.background = s.css;
+      btn.textContent = s.label;
+      btn.disabled = !canAfford(player, MASSAGE_COST);
+      btn.addEventListener('click', function() {
+        if (massageSnail(playerIdx, color)) {
+          state.downtimeActions[playerIdx] = { type: 'massage', summary: 'Massaged ' + capitalize(color) + ' (-$' + MASSAGE_COST + ', -2 stress)' };
+          state.downtimeSubmitted[playerIdx] = true;
+          renderDowntimePanels();
+          renderDowntimeMarket();
+          updateStartNextRaceBtn();
+        }
+      });
+      picker.appendChild(btn);
+    });
+    sub.appendChild(picker);
+
+  } else if (actionType === 'train') {
+    var label2 = document.createElement('div');
+    label2.style.fontWeight = '600';
+    label2.style.marginBottom = '8px';
+    label2.textContent = 'Choose snail to train:';
+    sub.appendChild(label2);
+
+    var picker2 = document.createElement('div');
+    picker2.className = 'snail-picker';
+    SNAILS.forEach(function(s) {
+      if ((player.shares[s.color] || 0) < 1 || state.eliminated[s.color]) return;
+      var btn = document.createElement('button');
+      btn.className = 'snail-pick-btn';
+      btn.style.background = s.css;
+      btn.textContent = s.label;
+      btn.disabled = !canAfford(player, TRAIN_COST);
+      btn.addEventListener('click', function() {
+        var result = trainSnail(playerIdx, s.color);
+        if (result.success) {
+          var msg = 'Trained ' + capitalize(s.color) + ' (-$' + TRAIN_COST + '). Rolled: ' + capitalize(result.rolledColor) + '. ';
+          if (result.trained) {
+            msg += 'Training successful! +1 permanent movement.';
+          } else {
+            msg += 'Training failed (wrong color).';
+          }
+          if (result.broken) {
+            msg += ' Snail broke down from stress!';
+          }
+          state.downtimeActions[playerIdx] = { type: 'train', summary: msg };
+          state.downtimeSubmitted[playerIdx] = true;
+          renderDowntimePanels();
+          renderDowntimeMarket();
+          updateStartNextRaceBtn();
+        }
+      });
+      picker2.appendChild(btn);
+    });
+    sub.appendChild(picker2);
+
+  } else if (actionType === 'buyShop') {
+    var label3 = document.createElement('div');
+    label3.style.fontWeight = '600';
+    label3.style.marginBottom = '8px';
+    label3.textContent = 'Choose shop to invest in ($' + SHARE_COST + '):';
+    sub.appendChild(label3);
+
+    SHOPS.forEach(function(shopKey) {
+      var btn = document.createElement('button');
+      btn.className = 'downtime-action-btn';
+      btn.style.marginBottom = '4px';
+      var currentOwned = player.shopShares[shopKey] || 0;
+      btn.textContent = SHOP_NAMES[shopKey] + ' (you own ' + currentOwned + ')';
+      btn.disabled = !canAfford(player, SHARE_COST);
+      btn.addEventListener('click', function() {
+        if (buyShopShare(playerIdx, shopKey)) {
+          state.downtimeActions[playerIdx] = { type: 'buyShop', summary: 'Bought ' + SHOP_NAMES[shopKey] + ' share (-$' + SHARE_COST + ')' };
+          state.downtimeSubmitted[playerIdx] = true;
+          renderDowntimePanels();
+          renderDowntimeMarket();
+          updateStartNextRaceBtn();
+        }
+      });
+      sub.appendChild(btn);
+    });
+
+  } else if (actionType === 'sell') {
+    renderSellUI(sub, playerIdx, function() {
+      state.downtimeActions[playerIdx] = { type: 'sell', summary: 'Listed a share for sale' };
+      state.downtimeSubmitted[playerIdx] = true;
+      renderDowntimePanels();
+      renderDowntimeMarket();
+      updateStartNextRaceBtn();
+    });
+  }
+
+  panel.appendChild(sub);
+}
+
+function renderDowntimeMarket() {
+  var marketSection = document.getElementById('downtime-market');
+  var listingsDiv = document.getElementById('downtime-market-listings');
+  listingsDiv.textContent = '';
+
+  if (state.marketListings.length === 0) {
+    marketSection.style.display = 'none';
+    return;
+  }
+  marketSection.style.display = '';
+
+  state.marketListings.forEach(function(listing) {
+    var row = document.createElement('div');
+    row.className = 'market-listing';
+
+    var info = document.createElement('span');
+    info.className = 'market-listing-info';
+    var assetName = listing.assetType === 'snail'
+      ? capitalize(listing.assetKey) + ' snail share'
+      : SHOP_NAMES[listing.assetKey] + ' shop share';
+    var sellerName = escapeHTML(state.players[listing.sellerId].name);
+    info.textContent = assetName + ' — $' + listing.price + ' (from ' + sellerName + ')';
+    row.appendChild(info);
+
+    // Show buy buttons for each player who hasn't submitted
+    var btnGroup = document.createElement('span');
+    btnGroup.style.display = 'flex';
+    btnGroup.style.gap = '4px';
+
+    state.players.forEach(function(p, pIdx) {
+      if (pIdx === listing.sellerId) return;
+      if (state.downtimeSubmitted[pIdx]) return;
+      var buyBtn = document.createElement('button');
+      buyBtn.className = 'market-buy-btn';
+      buyBtn.textContent = escapeHTML(p.name);
+      buyBtn.disabled = !canAfford(p, listing.price);
+      if (listing.assetType === 'snail' && (state.snailShares[listing.assetKey] || 0) >= MAX_SHARES_PER_SNAIL) {
+        buyBtn.disabled = true;
+      }
+      (function(pi, lid) {
+        buyBtn.addEventListener('click', function() {
+          if (buyListing(pi, lid)) {
+            renderDowntimePanels();
+            renderDowntimeMarket();
+          }
+        });
+      })(pIdx, listing.id);
+      btnGroup.appendChild(buyBtn);
+    });
+
+    row.appendChild(btnGroup);
+    listingsDiv.appendChild(row);
+  });
+}
+
+function updateStartNextRaceBtn() {
+  var allSubmitted = true;
+  state.players.forEach(function(p, i) {
+    if (!state.downtimeSubmitted[i]) allSubmitted = false;
+  });
+  var btn = document.getElementById('start-next-race-btn');
+  btn.disabled = !allSubmitted;
+  btn.textContent = allSubmitted ? 'Start Next Race!' : 'Start Next Race (waiting for all players...)';
 }
 
 // ── Game Over ──
@@ -1613,7 +2427,6 @@ function showGameOver(finalRanking) {
   var ws = document.getElementById('winner-snail');
   ws.textContent = '';
 
-  // Show all race winners
   state.raceResults.forEach(function(result) {
     var winnerColor = result.ranking[0].color;
     var s = SNAILS.find(function(sn) { return sn.color === winnerColor; });
@@ -1672,6 +2485,66 @@ function showGameOver(finalRanking) {
   }
 }
 
+// ── Tooltip System ──
+
+var tooltipEl = document.getElementById('game-tooltip');
+var tooltipVisible = false;
+
+function showTooltip(anchorEl, text) {
+  tooltipEl.textContent = text;
+  tooltipEl.classList.add('visible');
+  tooltipVisible = true;
+
+  var rect = anchorEl.getBoundingClientRect();
+  var tipWidth = 280;
+  var tipHeight = tooltipEl.offsetHeight || 60;
+
+  // Position above the element by default
+  var top = rect.top - tipHeight - 8;
+  var left = rect.left + (rect.width / 2) - (tipWidth / 2);
+
+  // If not enough room above, position below
+  if (top < 8) {
+    top = rect.bottom + 8;
+  }
+
+  // Clamp to viewport
+  left = Math.max(8, Math.min(left, window.innerWidth - tipWidth - 8));
+  top = Math.max(8, Math.min(top, window.innerHeight - tipHeight - 8));
+
+  tooltipEl.style.left = left + 'px';
+  tooltipEl.style.top = top + 'px';
+}
+
+function hideTooltip() {
+  tooltipEl.classList.remove('visible');
+  tooltipVisible = false;
+}
+
+// Delegated tooltip event listeners
+document.body.addEventListener('mouseenter', function(e) {
+  var target = e.target.closest('[data-tooltip]');
+  if (target) showTooltip(target, target.dataset.tooltip);
+}, true);
+
+document.body.addEventListener('mouseleave', function(e) {
+  var target = e.target.closest('[data-tooltip]');
+  if (target) hideTooltip();
+}, true);
+
+document.body.addEventListener('touchstart', function(e) {
+  var target = e.target.closest('[data-tooltip]');
+  if (target) {
+    if (tooltipVisible) {
+      hideTooltip();
+    } else {
+      showTooltip(target, target.dataset.tooltip);
+    }
+  } else {
+    hideTooltip();
+  }
+}, { passive: true });
+
 // ── Setup Screen Logic ──
 
 var playerCount = 2;
@@ -1714,12 +2587,28 @@ document.getElementById('play-again-btn').addEventListener('click', function() {
   showScreen('setup-screen');
 });
 
+// Race results "Continue" -> downtime screen
 document.getElementById('next-race-btn').addEventListener('click', function() {
+  showDowntimeScreen();
+});
+
+// Downtime "Start Next Race" -> game screen
+document.getElementById('start-next-race-btn').addEventListener('click', function() {
   resetForNextRace();
   buildTrack();
   showScreen('game-screen');
   renderDice(null);
   renderAll();
+});
+
+// ── Profit panel toggle ──
+
+document.getElementById('profit-toggle').addEventListener('click', function() {
+  profitPanelOpen = !profitPanelOpen;
+  var content = document.getElementById('profit-content');
+  content.style.display = profitPanelOpen ? '' : 'none';
+  document.getElementById('profit-toggle').textContent = profitPanelOpen ? 'Who Profits \u25B2' : 'Who Profits \u25BC';
+  if (profitPanelOpen) renderProfitPanel();
 });
 
 // ── Tab switching ──
