@@ -13,3 +13,8 @@ Desktop.ini
 # Environment
 .env
 .env.*
+
+# Local tooling
+.claude/
+.playwright-mcp/
+supabase/.temp/
