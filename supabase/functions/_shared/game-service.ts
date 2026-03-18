@@ -1,6 +1,7 @@
 import {
   applyDowntimeAction,
   applyRaceAction,
+  applyResign,
   archiveGameState,
   buildGameView,
   createGameState,
@@ -283,7 +284,9 @@ export async function submitAction(request: Request, payload: Record<string, unk
 
   const currentState = sessionContext.game.snapshot;
   let applied;
-  if (currentState.phase === "race_turn") {
+  if (intent.type === "resign") {
+    applied = applyResign(currentState, sessionContext.seat.seat_index);
+  } else if (currentState.phase === "race_turn") {
     applied = applyRaceAction(currentState, sessionContext.seat.seat_index, intent);
   } else if (currentState.phase === "downtime_submit") {
     applied = applyDowntimeAction(currentState, sessionContext.seat.seat_index, intent, Math.random, { autoAdvance: true });

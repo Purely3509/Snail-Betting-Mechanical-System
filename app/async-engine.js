@@ -79,6 +79,7 @@ export function createGameState(playerNames, options = {}) {
     nextListingId: 1,
     downtimeActions: {},
     downtimeSubmitted: {},
+    resigned: {},
     recentSummaries: [],
     version: 0,
     idleDeadlineAt: null,
@@ -96,6 +97,7 @@ export function createGameState(playerNames, options = {}) {
   players.forEach((_, index) => {
     state.downtimeActions[index] = null;
     state.downtimeSubmitted[index] = false;
+    state.resigned[index] = false;
   });
 
   return state;
@@ -168,9 +170,26 @@ function pushSummary(state, summary) {
 }
 
 function nextTurn(state) {
-  state.currentPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
-  if (state.currentPlayerIndex === 0) {
+  const startIndex = state.currentPlayerIndex;
+  const playerCount = state.players.length;
+  let next = (startIndex + 1) % playerCount;
+  let attempts = 0;
+  while (state.resigned[next] && attempts < playerCount) {
+    next = (next + 1) % playerCount;
+    attempts += 1;
+  }
+  if (next <= startIndex) {
     state.round += 1;
+  }
+  state.currentPlayerIndex = next;
+}
+
+function advancePastResigned(state) {
+  const playerCount = state.players.length;
+  let attempts = 0;
+  while (state.resigned[state.currentPlayerIndex] && attempts < playerCount) {
+    state.currentPlayerIndex = (state.currentPlayerIndex + 1) % playerCount;
+    attempts += 1;
   }
 }
 
@@ -531,8 +550,13 @@ function makeDowntimeSummary(state, actorIndex, actionType, detail) {
 function initializeDowntime(state) {
   state.phase = "downtime_submit";
   state.players.forEach((_, index) => {
-    state.downtimeActions[index] = null;
-    state.downtimeSubmitted[index] = false;
+    if (state.resigned[index]) {
+      state.downtimeActions[index] = { type: "resign", summary: "Resigned" };
+      state.downtimeSubmitted[index] = true;
+    } else {
+      state.downtimeActions[index] = null;
+      state.downtimeSubmitted[index] = false;
+    }
   });
 }
 
@@ -567,13 +591,19 @@ function startNextRaceInternal(state) {
   state.phase = "race_turn";
   state.lastRoll = null;
   state.players.forEach((_, index) => {
-    state.downtimeActions[index] = null;
-    state.downtimeSubmitted[index] = false;
+    if (state.resigned[index]) {
+      state.downtimeActions[index] = { type: "resign", summary: "Resigned" };
+      state.downtimeSubmitted[index] = true;
+    } else {
+      state.downtimeActions[index] = null;
+      state.downtimeSubmitted[index] = false;
+    }
   });
+  advancePastResigned(state);
 }
 
 function allDowntimeSubmitted(state) {
-  return state.players.every((_, index) => state.downtimeSubmitted[index]);
+  return state.players.every((_, index) => state.downtimeSubmitted[index] || state.resigned[index]);
 }
 
 function areCurrentDowntimeActionsRevealed(state) {
@@ -845,23 +875,95 @@ export function hostSkipSeat(state, seatIndex, options = {}) {
   return { ok: false, error: "Game cannot skip seats in the current phase." };
 }
 
+export function applyResign(state, actorIndex) {
+  if (state.status !== "active") {
+    return { ok: false, error: "Game is not active." };
+  }
+  if (state.resigned[actorIndex]) {
+    return { ok: false, error: "Already resigned." };
+  }
+
+  const nextState = cloneGameState(state);
+  nextState.resigned[actorIndex] = true;
+
+  // Return any market listings by this player
+  nextState.marketListings = nextState.marketListings.filter((listing) => {
+    if (listing.sellerId === actorIndex) {
+      if (listing.assetType === "snail") {
+        nextState.players[actorIndex].shares[listing.assetKey] = (nextState.players[actorIndex].shares[listing.assetKey] || 0) + 1;
+        nextState.snailShares[listing.assetKey] = (nextState.snailShares[listing.assetKey] || 0) + 1;
+      } else if (listing.assetType === "shop") {
+        nextState.players[actorIndex].shopShares[listing.assetKey] = (nextState.players[actorIndex].shopShares[listing.assetKey] || 0) + 1;
+      }
+      return false;
+    }
+    return true;
+  });
+
+  const summary = {
+    kind: "system",
+    actionType: "resign",
+    actorIndex,
+    actorName: nextState.players[actorIndex].name,
+    timestamp: new Date().toISOString(),
+  };
+
+  const activePlayers = nextState.players.filter((_, i) => !nextState.resigned[i]);
+  if (activePlayers.length <= 1) {
+    nextState.status = "complete";
+    nextState.phase = "complete";
+    nextState.finalRanking = nextState.players
+      .map((player, index) => ({
+        index,
+        name: player.name,
+        coins: player.coins,
+        resigned: !!nextState.resigned[index],
+      }))
+      .sort((a, b) => {
+        if (a.resigned !== b.resigned) return a.resigned ? 1 : -1;
+        return b.coins - a.coins;
+      });
+    summary.gameComplete = true;
+  } else {
+    if (nextState.phase === "race_turn" && nextState.currentPlayerIndex === actorIndex) {
+      advancePastResigned(nextState);
+    }
+    if (nextState.phase === "downtime_submit" && !nextState.downtimeSubmitted[actorIndex]) {
+      nextState.downtimeSubmitted[actorIndex] = true;
+      nextState.downtimeActions[actorIndex] = { type: "resign", summary: "Resigned" };
+      if (allDowntimeSubmitted(nextState)) {
+        summary.downtimeComplete = true;
+        startNextRaceInternal(nextState);
+        summary.nextRaceStarted = { raceNumber: nextState.raceNumber };
+      }
+    }
+  }
+
+  nextState.version += 1;
+  pushSummary(nextState, summary);
+  return { ok: true, state: nextState, summary };
+}
+
 export function getAllowedActions(state, seatIndex) {
   if (state.status !== "active") {
+    return [];
+  }
+  if (state.resigned[seatIndex]) {
     return [];
   }
 
   if (state.phase === "race_turn") {
     if (seatIndex !== state.currentPlayerIndex) {
-      return [];
+      return ["resign"];
     }
-    return ["bet", "buy_snail_share", "drug", "market_buy", "market_list", "skip_roll"];
+    return ["bet", "buy_snail_share", "drug", "market_buy", "market_list", "skip_roll", "resign"];
   }
 
   if (state.phase === "downtime_submit") {
     if (state.downtimeSubmitted[seatIndex]) {
       return [];
     }
-    return ["massage", "train", "buy_shop_share", "market_buy", "market_list", "pass"];
+    return ["massage", "train", "buy_shop_share", "market_buy", "market_list", "pass", "resign"];
   }
 
   return [];
@@ -873,8 +975,12 @@ export function getStandings(state) {
       index,
       name: player.name,
       coins: player.coins,
+      resigned: !!state.resigned[index],
     }))
-    .sort((left, right) => right.coins - left.coins);
+    .sort((left, right) => {
+      if (left.resigned !== right.resigned) return left.resigned ? 1 : -1;
+      return right.coins - left.coins;
+    });
 }
 
 export function getProfitProjection(state) {
@@ -966,6 +1072,7 @@ export function buildGameView(state, seatIndex, session = {}) {
       })),
       profitProjection: getProfitProjection(state),
       recentSummaries: getVisibleRecentSummaries(state, seatIndex),
+      resigned: structuredClone(state.resigned),
       downtimeSubmitted: structuredClone(state.downtimeSubmitted),
       downtimeActions: getVisibleDowntimeActions(state, seatIndex),
       lastRoll: structuredClone(state.lastRoll),

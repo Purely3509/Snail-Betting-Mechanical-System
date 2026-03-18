@@ -975,6 +975,7 @@ function startPolling() {
       const response = await onlineState.api.getGameView();
       commitView(response.view, requestId);
       onlineState.syncStatus = "synced";
+      setRuntimeError("");
       renderOnlineScreen();
     } catch (error) {
       onlineState.syncStatus = "error";
@@ -1178,9 +1179,15 @@ function renderLobby() {
       copyBtn.type = "button";
       copyBtn.textContent = "Copy";
       copyBtn.addEventListener("click", () => {
-        navigator.clipboard.writeText(input.value).then(() => {
+        const text = input.value;
+        const onCopied = () => {
           copyBtn.textContent = "Copied!";
           setTimeout(() => { copyBtn.textContent = "Copy"; }, 1500);
+        };
+        (navigator.clipboard?.writeText(text) || Promise.reject()).then(onCopied).catch(() => {
+          input.select();
+          document.execCommand("copy");
+          onCopied();
         });
       });
       row.appendChild(copyBtn);
@@ -1341,6 +1348,10 @@ function renderInfoPanel() {
 
     const name = document.createElement("span");
     name.textContent = row.name;
+    if (row.resigned) {
+      name.textContent = row.name + " (resigned)";
+      el.style.opacity = "0.5";
+    }
     el.appendChild(name);
 
     const coins = document.createElement("span");
@@ -1495,7 +1506,9 @@ function renderActionPanel(container) {
   } else if (allowed.length === 0) {
     const waiting = document.createElement("div");
     waiting.className = "og-waiting-msg";
-    if (onlineState.view.phase === "race_turn") {
+    if (onlineState.view.publicState.resigned?.[onlineState.session?.seatIndex]) {
+      waiting.textContent = "You have conceded this game.";
+    } else if (onlineState.view.phase === "race_turn") {
       const currentPlayer = onlineState.view.publicState?.players?.[onlineState.view.currentSeatId];
       waiting.textContent = currentPlayer ? `Waiting for ${currentPlayer.name}...` : "Waiting for the active player...";
     } else {
@@ -1506,6 +1519,28 @@ function renderActionPanel(container) {
     renderRaceActions(panel);
   } else if (onlineState.view.phase === "downtime_submit") {
     renderDowntimeActions(panel);
+  }
+
+  // Resign button
+  if (allowed.includes("resign")) {
+    const resignGroup = document.createElement("div");
+    resignGroup.className = "og-action-group";
+    resignGroup.style.borderTop = "1px solid rgba(255,255,255,0.1)";
+    resignGroup.style.paddingTop = "10px";
+    resignGroup.style.marginTop = "10px";
+    const resignBtns = document.createElement("div");
+    resignBtns.className = "og-action-btns";
+    const resignBtn = document.createElement("button");
+    resignBtn.style.background = "#8b0000";
+    resignBtn.textContent = "Concede Game";
+    resignBtn.addEventListener("click", () => {
+      if (confirm("Are you sure you want to concede? This cannot be undone.")) {
+        submitIntent({ type: "resign" });
+      }
+    });
+    resignBtns.appendChild(resignBtn);
+    resignGroup.appendChild(resignBtns);
+    panel.appendChild(resignGroup);
   }
 
   // Host skip
@@ -2082,6 +2117,11 @@ function renderSummaryItem(element, summary) {
     }
   } else if (summary.kind === "downtime_submit") {
     element.appendChild(document.createTextNode(summary.detail?.summary || summary.actionType));
+  } else if (summary.actionType === "resign") {
+    element.appendChild(document.createTextNode("conceded the game"));
+    if (summary.gameComplete) {
+      element.appendChild(document.createTextNode(" \u2014 game over!"));
+    }
   } else {
     element.appendChild(document.createTextNode(summary.actionType || "system update"));
   }
@@ -2107,9 +2147,12 @@ async function submitIntent(intent) {
         const requestId = nextRequestId();
         const refreshed = await onlineState.api.getGameView();
         commitView(refreshed.view, requestId);
+        onlineState.syncStatus = "synced";
         renderOnlineScreen();
+        setRuntimeError("Game updated by another player. Please try your action again.");
+        return;
       } catch {
-        // Ignore the secondary refresh failure and surface the original conflict.
+        // fall through to generic error
       }
     }
     onlineState.syncStatus = "error";

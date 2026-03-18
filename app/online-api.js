@@ -14,7 +14,9 @@ export function loadOnlineConfig() {
 }
 
 export function saveOnlineConfig(config) {
-  localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+  try {
+    localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+  } catch { /* storage unavailable */ }
 }
 
 export function loadOnlineSession() {
@@ -26,11 +28,15 @@ export function loadOnlineSession() {
 }
 
 export function saveOnlineSession(session) {
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  } catch { /* storage unavailable */ }
 }
 
 export function clearOnlineSession() {
-  localStorage.removeItem(SESSION_KEY);
+  try {
+    localStorage.removeItem(SESSION_KEY);
+  } catch { /* storage unavailable */ }
 }
 
 export class AsyncOnlineApi {
@@ -53,25 +59,33 @@ export class AsyncOnlineApi {
       throw new Error("Supabase URL and anon key are required.");
     }
 
-    const response = await fetch(`${this.supabaseUrl}/functions/v1/${functionName}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: this.anonKey,
-        Authorization: `Bearer ${this.anonKey}`,
-        ...(this.sessionToken ? { "x-snail-session": this.sessionToken } : {}),
-      },
-      body: JSON.stringify(payload),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const error = new Error(data.error || `Request failed (${response.status})`);
-      error.status = response.status;
-      error.payload = data;
-      throw error;
+    try {
+      const response = await fetch(`${this.supabaseUrl}/functions/v1/${functionName}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: this.anonKey,
+          Authorization: `Bearer ${this.anonKey}`,
+          ...(this.sessionToken ? { "x-snail-session": this.sessionToken } : {}),
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const error = new Error(data.error || `Request failed (${response.status})`);
+        error.status = response.status;
+        error.payload = data;
+        throw error;
+      }
+      return data;
+    } finally {
+      clearTimeout(timeoutId);
     }
-    return data;
   }
 
   createGame(payload) {
