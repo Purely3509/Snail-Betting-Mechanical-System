@@ -1,33 +1,74 @@
-# Stress + Massage Implementation Plan
+# Project Notes
 
-## 1. Data & Constants
-- Add `STRESS_MAX = 10`, `MASSAGE_COST = 5`, `MASSAGE_STRESS_RELIEF = 2`, `MASSAGE_SHOP_PAYOUT = 10`
-- Add `'massageParlor'` to SHOPS array
-- Add `stress: 0` to each snail in `initGame()`
-- Add `eliminated: {}` to state (tracks which snails are out mid-race)
+## Current State
+- Local hotseat mode still runs from [`index.html`](/C:/Users/User/Desktop/Snail%20Betting/index.html) and remains the playable baseline.
+- Async multiplayer scaffolding has been added on top of that local mode.
+- Shared game rules now live in [`app/async-engine.js`](/C:/Users/User/Desktop/Snail%20Betting/app/async-engine.js).
+- Online browser integration now lives in [`app/online-api.js`](/C:/Users/User/Desktop/Snail%20Betting/app/online-api.js) and [`app/online-ui.js`](/C:/Users/User/Desktop/Snail%20Betting/app/online-ui.js).
+- Supabase schema and Edge Function handlers now live under [`supabase/`](/C:/Users/User/Desktop/Snail%20Betting/supabase).
 
-## 2. Stress Logic
-- `drugSnail()`: add +1 stress after drugging; check if stress >= STRESS_MAX → eliminate
-- `massageSnail(playerIndex, snailColor)`: new function — manager only, costs $5, removes 2 stress (min 0), pays massage parlor shareholders $10/share
-- End-of-race in `showRaceResults` area: top 3 get -1 stress, bottom 3 get +1 stress (clamp ≥ 0)
+## What Was Implemented
+- Extracted async-safe game engine logic for:
+  - Race turns
+  - Downtime submissions
+  - Market listings and purchases
+  - Training, stress, elimination, shop payouts
+  - Public/private online game views
+  - Host skip behavior
+- Added Supabase migration for:
+  - `games`
+  - `seats`
+  - `sessions`
+  - `events`
+- Added Supabase Edge Function entrypoints for:
+  - `create_game`
+  - `claim_seat`
+  - `resume_session`
+  - `start_game`
+  - `get_game_view`
+  - `submit_action`
+  - `host_skip_seat`
+  - `archive_or_rematch`
+- Added an online setup flow in the browser:
+  - Local vs online mode switch
+  - Supabase URL / anon key inputs
+  - Create game
+  - Join by invite link
+  - Resume saved session
+  - Polling-based online state refresh
 
-## 3. Elimination
-- When stress >= 10: `eliminated[color] = true`, snail stops participating in rolls
-- `moveSnails()`: skip eliminated snails
-- `checkWin()`: don't count eliminated snails as winners
-- `getRaceRanking()`: eliminated snails rank last
-- Bets on eliminated snails: lost (pay $0)
-- Shares on eliminated snails: kept (but no placement payout since ranked last)
-- `resetForNextRace()`: clear eliminated flags, reset eliminated snails' stress to 0
+## Verification Done
+- Engine tests pass via:
+  - `node tests/engine.test.mjs`
+- Syntax smoke checks passed for:
+  - [`app/online-api.js`](/C:/Users/User/Desktop/Snail%20Betting/app/online-api.js)
+  - [`app/online-ui.js`](/C:/Users/User/Desktop/Snail%20Betting/app/online-ui.js)
 
-## 4. UI Changes
-- Rename "drug tab" to "manager tab" since it now has both drug + massage
-- Show stress bar/number next to each snail in manager tab
-- Add "Give Massage ($5)" button (same pattern as drug button)
-- Massage button disabled if: no snail selected, snail stress is 0, can't afford, not manager
-- Show stress indicators on the track (small number or bar)
-- Grey out / mark eliminated snails on track
-- Show elimination events in the log/status area
+## Where We Left Off
+- The code is implemented locally but not deployed.
+- Supabase migration has not been applied yet.
+- Supabase Edge Functions have not been deployed yet.
+- No live end-to-end multiplayer session has been tested against a real Supabase project yet.
+- The online UI is functional scaffolding, not a polished final UX.
 
-## 5. Race Reset
-- `resetForNextRace()`: clear `eliminated`, reset eliminated snails' stress to 0 (others keep their stress)
+## Next Steps
+1. Create or choose the Supabase project for this game.
+2. Apply [`supabase/migrations/20260317_async_multiplayer.sql`](/C:/Users/User/Desktop/Snail%20Betting/supabase/migrations/20260317_async_multiplayer.sql).
+3. Deploy the Edge Functions in [`supabase/functions/`](/C:/Users/User/Desktop/Snail%20Betting/supabase/functions).
+4. Open the app, switch to `Online Async`, and enter the Supabase URL + anon key.
+5. Test a real multiplayer flow on two devices:
+   - create lobby
+   - join via invite link
+   - start game
+   - submit race turns
+   - submit downtime actions
+   - verify market conflict handling
+   - verify host skip after timeout
+6. Tighten the online UX after live testing reveals rough edges.
+
+## Important Notes
+- Local mode and online mode currently coexist; do not remove local mode unless explicitly requested.
+- The repo now has a mixed architecture:
+  - legacy inline app logic in [`index.html`](/C:/Users/User/Desktop/Snail%20Betting/index.html)
+  - new shared/online modules in [`app/`](/C:/Users/User/Desktop/Snail%20Betting/app)
+- If more multiplayer work is done, prefer moving additional logic out of [`index.html`](/C:/Users/User/Desktop/Snail%20Betting/index.html) into shared modules instead of duplicating rules again.

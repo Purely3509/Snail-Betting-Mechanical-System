@@ -1,0 +1,23 @@
+[functions.create_game]
+verify_jwt = false
+
+[functions.claim_seat]
+verify_jwt = false
+
+[functions.resume_session]
+verify_jwt = false
+
+[functions.start_game]
+verify_jwt = false
+
+[functions.get_game_view]
+verify_jwt = false
+
+[functions.submit_action]
+verify_jwt = false
+
+[functions.host_skip_seat]
+verify_jwt = false
+
+[functions.archive_or_rematch]
+verify_jwt = false
