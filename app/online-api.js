@@ -39,6 +39,16 @@ export function clearOnlineSession() {
   } catch { /* storage unavailable */ }
 }
 
+const ONBOARDING_KEY = "snailBettingOnboardingSeen";
+
+export function hasSeenOnboarding() {
+  try { return localStorage.getItem(ONBOARDING_KEY) === "1"; } catch { return false; }
+}
+
+export function markOnboardingSeen() {
+  try { localStorage.setItem(ONBOARDING_KEY, "1"); } catch { /* storage unavailable */ }
+}
+
 export class AsyncOnlineApi {
   constructor(config) {
     this.supabaseUrl = trimTrailingSlash(config.supabaseUrl || "");

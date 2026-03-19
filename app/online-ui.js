@@ -1,8 +1,10 @@
 import { DEFAULTS, SHOPS, SHOP_NAMES, SNAILS } from "./async-engine.js";
 import {
   AsyncOnlineApi,
+  hasSeenOnboarding,
   loadOnlineConfig,
   loadOnlineSession,
+  markOnboardingSeen,
   saveOnlineConfig,
   saveOnlineSession,
 } from "./online-api.js";
@@ -660,6 +662,87 @@ function injectOnlineStyles() {
       margin-bottom: 6px;
     }
     .og-downtime-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Onboarding Overlay ── */
+    .og-onboarding {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(0,0,0,0.88);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .og-onboard-card {
+      max-width: 340px;
+      width: 100%;
+      background: var(--panel, #1a1a2e);
+      border-radius: 16px;
+      padding: 28px 24px 24px;
+      text-align: center;
+      animation: ogFadeIn 0.25s ease-out;
+    }
+    @keyframes ogFadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .og-onboard-dots {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .og-onboard-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.2);
+      transition: background 0.2s;
+    }
+    .og-onboard-dot.active { background: #3a86ff; }
+    .og-onboard-emoji {
+      font-size: 2.2rem;
+      margin-bottom: 10px;
+    }
+    .og-onboard-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .og-onboard-body {
+      font-size: 0.9rem;
+      opacity: 0.85;
+      line-height: 1.5;
+      margin-bottom: 22px;
+    }
+    .og-onboard-next {
+      width: 100%;
+      min-height: 48px;
+      border: none;
+      border-radius: 10px;
+      background: #2ecc71;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .og-onboard-next:active { opacity: 0.85; }
+    .og-help-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: transparent;
+      color: var(--text);
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
   `;
   document.head.appendChild(style);
 }
@@ -1022,12 +1105,87 @@ function showOnlineScreen() {
    MAIN RENDER
    ═══════════════════════════════════════════ */
 
+const ONBOARDING_STEPS = [
+  { emoji: "\uD83C\uDFC1", title: "Async Multiplayer", body: "Take your turn whenever you\u2019re ready. Other players take theirs on their own time. The game syncs automatically \u2014 no need to be online at the same time." },
+  { emoji: "\uD83D\uDC0C", title: "Race Phase", body: "Each turn you can bet on a snail, buy shares, stimulate your managed snail, or skip and roll the dice. Snails race across a 12-space track." },
+  { emoji: "\uD83D\uDEE0\uFE0F", title: "Downtime Phase", body: "Between races, everyone acts at once: train snails for a speed bonus, visit the massage parlor to reduce stress, or trade shares on the market." },
+  { emoji: "\uD83D\uDCB0", title: "Coins, Shares & Stress", body: "Earn coins from winning bets and share payouts. Snails gain stress from activity \u2014 at 10 stress they\u2019re eliminated. The majority shareholder becomes manager." },
+  { emoji: "\uD83C\uDF1F", title: "You\u2019re Ready!", body: "Check the Activity tab to see what others have done. You can concede anytime from the Actions panel. Good luck, and may the best sponsor win!" },
+];
+
+function renderOnboardingOverlay(forceShow = false) {
+  if (!forceShow && hasSeenOnboarding()) return;
+  const existing = document.querySelector(".og-onboarding");
+  if (existing) existing.remove();
+
+  let step = 0;
+  const overlay = document.createElement("div");
+  overlay.className = "og-onboarding";
+
+  function renderStep() {
+    const s = ONBOARDING_STEPS[step];
+    overlay.textContent = "";
+
+    const card = document.createElement("div");
+    card.className = "og-onboard-card";
+
+    const dots = document.createElement("div");
+    dots.className = "og-onboard-dots";
+    ONBOARDING_STEPS.forEach((_, i) => {
+      const d = document.createElement("div");
+      d.className = "og-onboard-dot" + (i === step ? " active" : "");
+      dots.appendChild(d);
+    });
+    card.appendChild(dots);
+
+    const emoji = document.createElement("div");
+    emoji.className = "og-onboard-emoji";
+    emoji.textContent = s.emoji;
+    card.appendChild(emoji);
+
+    const title = document.createElement("div");
+    title.className = "og-onboard-title";
+    title.textContent = s.title;
+    card.appendChild(title);
+
+    const body = document.createElement("div");
+    body.className = "og-onboard-body";
+    body.textContent = s.body;
+    card.appendChild(body);
+
+    const btn = document.createElement("button");
+    btn.className = "og-onboard-next";
+    btn.textContent = step < ONBOARDING_STEPS.length - 1 ? "Next" : "Let\u2019s Go!";
+    btn.addEventListener("click", () => {
+      step++;
+      if (step >= ONBOARDING_STEPS.length) {
+        markOnboardingSeen();
+        overlay.remove();
+        renderOnlineScreen();
+      } else {
+        renderStep();
+      }
+    });
+    card.appendChild(btn);
+    overlay.appendChild(card);
+  }
+
+  renderStep();
+  document.body.appendChild(overlay);
+}
+
 function renderOnlineScreen() {
   if (!onlineState.view) {
     return;
   }
 
   showOnlineScreen();
+
+  if (!hasSeenOnboarding() && onlineState.view.phase !== "lobby") {
+    renderOnboardingOverlay();
+    return;
+  }
+
   setRuntimeError(onlineState.lastError);
   renderHeader();
 
@@ -1071,6 +1229,9 @@ function renderHeader() {
       : view.phase === "complete" ? "Complete"
       : view.phase;
     raceInfo.textContent = view.raceNumber ? `Race ${view.raceNumber} \u2022 ${phaseLabel}` : phaseLabel;
+    raceInfo.dataset.tooltip = view.phase === "race_turn" ? "Racing \u2014 players take turns betting, buying shares, and rolling dice."
+      : view.phase === "downtime_submit" ? "Downtime \u2014 everyone acts at once between races. Submit when ready."
+      : "The game is over. Check final standings!";
     header.appendChild(raceInfo);
 
     if (view.phase === "race_turn" && view.currentSeatId !== null && view.publicState?.players?.[view.currentSeatId]) {
@@ -1086,13 +1247,26 @@ function renderHeader() {
     }
   }
 
+  const rightGroup = document.createElement("span");
+  rightGroup.style.cssText = "display:inline-flex;align-items:center;gap:6px;";
+
   const sync = document.createElement("span");
   sync.className = "og-sync";
+  sync.dataset.tooltip = "Green = live sync. Yellow = updating. Red = offline \u2014 your actions will retry automatically.";
   const dot = document.createElement("span");
   dot.className = "og-sync-dot " + onlineState.syncStatus;
   sync.appendChild(dot);
   sync.appendChild(document.createTextNode(onlineState.syncStatus === "synced" ? "Live" : onlineState.syncStatus === "syncing" ? "Syncing" : onlineState.syncStatus === "error" ? "Offline" : ""));
-  header.appendChild(sync);
+  rightGroup.appendChild(sync);
+
+  const helpBtn = document.createElement("button");
+  helpBtn.className = "og-help-btn";
+  helpBtn.textContent = "?";
+  helpBtn.dataset.tooltip = "Replay the tutorial";
+  helpBtn.addEventListener("click", () => renderOnboardingOverlay(true));
+  rightGroup.appendChild(helpBtn);
+
+  header.appendChild(rightGroup);
 }
 
 /* ═══════════════════════════════════════════
@@ -1281,6 +1455,9 @@ function renderSnailStats() {
     const card = document.createElement("div");
     card.className = "og-snail-stat" + (snail.eliminated ? " eliminated" : "");
     card.style.borderLeftColor = snailCss(snail.color);
+    card.dataset.tooltip = snail.eliminated
+      ? `${snail.color} is eliminated (stress reached ${DEFAULTS.stressMax}).`
+      : `${snail.color} \u2014 Stress: ${snail.stress}/${DEFAULTS.stressMax}. At ${DEFAULTS.stressMax} the snail is eliminated. Top 3 finishers lose 1 stress; others gain 1.`;
 
     const icon = document.createElement("div");
     icon.className = "og-stat-icon";
@@ -1316,6 +1493,7 @@ function renderSnailStats() {
       drugRow.className = "og-stat-row";
       drugRow.style.color = "#e74c3c";
       drugRow.textContent = "BOOSTED";
+      drugRow.dataset.tooltip = "This snail's next dice movement will be doubled.";
       card.appendChild(drugRow);
     }
 
@@ -1340,6 +1518,7 @@ function renderInfoPanel() {
   const standingsLabel = document.createElement("div");
   standingsLabel.className = "og-section-label";
   standingsLabel.textContent = "Standings";
+  standingsLabel.dataset.tooltip = "Current coin totals. Coins come from winning bets and share payouts at race end.";
   panel.appendChild(standingsLabel);
 
   onlineState.view.publicState.standings.forEach((row) => {
@@ -1373,6 +1552,7 @@ function renderInfoPanel() {
     const yourLabel = document.createElement("div");
     yourLabel.className = "og-section-label";
     yourLabel.textContent = "Your Portfolio";
+    yourLabel.dataset.tooltip = "Your active bets and share holdings. Shares in top-3 finishers pay $30/$20/$10 each at race end.";
     panel.appendChild(yourLabel);
 
     // Bets
@@ -1453,15 +1633,16 @@ function renderTabs() {
   tabs.className = "og-tabs";
 
   const tabDefs = [
-    { id: "actions", label: "Actions" },
-    { id: "market", label: "Market" },
-    { id: "activity", label: "Activity" },
+    { id: "actions", label: "Actions", tip: "Take your turn: bet, buy shares, stimulate, or trade." },
+    { id: "market", label: "Market", tip: "View shares listed for sale and projected payouts." },
+    { id: "activity", label: "Activity", tip: "Recent moves by all players \u2014 bets, rolls, trades, and results." },
   ];
 
   tabDefs.forEach((tab) => {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.textContent = tab.label;
+    btn.dataset.tooltip = tab.tip;
     btn.classList.toggle("active", onlineState.activeTab === tab.id);
     btn.addEventListener("click", () => {
       onlineState.activeTab = tab.id;
@@ -1533,6 +1714,7 @@ function renderActionPanel(container) {
     const resignBtn = document.createElement("button");
     resignBtn.style.background = "#8b0000";
     resignBtn.textContent = "Concede Game";
+    resignBtn.dataset.tooltip = "Permanently leave this game. Your snails and shares are forfeited. Cannot be undone.";
     resignBtn.addEventListener("click", () => {
       if (confirm("Are you sure you want to concede? This cannot be undone.")) {
         submitIntent({ type: "resign" });
@@ -1616,6 +1798,7 @@ function renderRaceActions(container) {
   const betLabel = document.createElement("div");
   betLabel.className = "og-action-label";
   betLabel.textContent = "Place a Bet";
+  betLabel.dataset.tooltip = "Wager coins on a snail to win. Earlier bets pay better: 5x when snails are near the start, down to 1.5x near the finish.";
   betGroup.appendChild(betLabel);
 
   const betDraft = getDraft("race-bet");
@@ -1668,6 +1851,7 @@ function renderRaceActions(container) {
   const shareLabel = document.createElement("div");
   shareLabel.className = "og-action-label";
   shareLabel.textContent = `Buy Snail Share ($${DEFAULTS.shareCost})`;
+  shareLabel.dataset.tooltip = `Buy a share for $${DEFAULTS.shareCost}. Top 3 finishers pay $30/$20/$10 per share. The majority shareholder becomes manager.`;
   shareGroup.appendChild(shareLabel);
   const shareDraft = getDraft("race-buy-share");
   shareGroup.appendChild(createSnailPicker("race-buy-share", shareDraft.value));
@@ -1692,6 +1876,7 @@ function renderRaceActions(container) {
     const drugLabel = document.createElement("div");
     drugLabel.className = "og-action-label";
     drugLabel.textContent = `Stimulate Managed Snail ($${DEFAULTS.drugCost})`;
+    drugLabel.dataset.tooltip = `Manager only. Doubles this snail's next movement. Costs $${DEFAULTS.drugCost}, adds +1 stress. Colombia shareholders earn dividends.`;
     drugGroup.appendChild(drugLabel);
     const drugDraft = getDraft("race-drug");
     drugGroup.appendChild(createSnailPicker("race-drug", drugDraft.value, managedSnails));
@@ -1719,6 +1904,7 @@ function renderRaceActions(container) {
   const skipBtn = document.createElement("button");
   skipBtn.className = "og-btn-skip";
   skipBtn.textContent = "Skip & Roll";
+  skipBtn.dataset.tooltip = "Take no action this turn and roll the dice to advance snails.";
   skipBtn.addEventListener("click", () => submitIntent({ type: "skip_roll" }));
   skipBtns.appendChild(skipBtn);
   container.appendChild(skipBtns);
@@ -1732,6 +1918,7 @@ function renderDowntimeActions(container) {
   const label = document.createElement("div");
   label.className = "og-action-label";
   label.textContent = "Between Races";
+  label.dataset.tooltip = "Everyone submits actions simultaneously. The next race starts when all players have submitted or passed.";
   label.style.marginBottom = "8px";
   container.appendChild(label);
 
@@ -1747,6 +1934,7 @@ function renderDowntimeActions(container) {
     const massageLabel = document.createElement("div");
     massageLabel.className = "og-action-label";
     massageLabel.textContent = `Massage ($${DEFAULTS.massageCost}, -${DEFAULTS.massageStressRelief} stress)`;
+    massageLabel.dataset.tooltip = `Manager only. Reduces stress by ${DEFAULTS.massageStressRelief} for $${DEFAULTS.massageCost}. Massage Parlor shareholders earn dividends.`;
     massageGroup.appendChild(massageLabel);
     massageGroup.appendChild(createSnailPicker("downtime-massage", getDraft("downtime-massage").value, managed));
     const mBtns = document.createElement("div");
@@ -1771,6 +1959,7 @@ function renderDowntimeActions(container) {
     const trainLabel = document.createElement("div");
     trainLabel.className = "og-action-label";
     trainLabel.textContent = `Train ($${DEFAULTS.trainCost})`;
+    trainLabel.dataset.tooltip = `Roll 1 die \u2014 if your snail's color comes up, permanent +1 movement bonus. Always adds +1 stress. Gym shareholders earn dividends.`;
     trainGroup.appendChild(trainLabel);
     trainGroup.appendChild(createSnailPicker("downtime-train", getDraft("downtime-train").value, trainable));
     const tBtns = document.createElement("div");
@@ -1793,6 +1982,7 @@ function renderDowntimeActions(container) {
   const shopLabel = document.createElement("div");
   shopLabel.className = "og-action-label";
   shopLabel.textContent = "Buy Shop Share";
+  shopLabel.dataset.tooltip = "Invest in a business (Colombia, Massage Parlor, Gym). Earn dividends whenever any player uses that shop.";
   shopGroup.appendChild(shopLabel);
 
   const shopSelect = document.createElement("select");
@@ -1829,6 +2019,7 @@ function renderDowntimeActions(container) {
   const passBtn = document.createElement("button");
   passBtn.className = "og-btn-skip";
   passBtn.textContent = "Submit Pass";
+  passBtn.dataset.tooltip = "Take no downtime action. Once all players submit, the next race begins.";
   passBtn.addEventListener("click", () => submitIntent({ type: "pass" }));
   passBtns.appendChild(passBtn);
   container.appendChild(passBtns);
