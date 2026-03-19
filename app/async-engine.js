@@ -675,6 +675,10 @@ export function applyRaceAction(state, actorIndex, intent, rng = Math.random) {
     detail.assetType = intent.assetType;
     detail.assetKey = intent.assetKey;
     detail.price = intent.price;
+  } else if (intent.type === "buy_shop_share") {
+    valid = buyShopShare(nextState, actorIndex, intent.shopKey);
+    detail.shopKey = intent.shopKey;
+    detail.cost = nextState.config.shareCost;
   } else if (intent.type === "skip_roll") {
     valid = true;
   } else {
@@ -956,7 +960,7 @@ export function getAllowedActions(state, seatIndex) {
     if (seatIndex !== state.currentPlayerIndex) {
       return ["resign"];
     }
-    return ["bet", "buy_snail_share", "drug", "market_buy", "market_list", "skip_roll", "resign"];
+    return ["bet", "buy_snail_share", "buy_shop_share", "drug", "market_buy", "market_list", "skip_roll", "resign"];
   }
 
   if (state.phase === "downtime_submit") {

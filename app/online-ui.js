@@ -390,6 +390,13 @@ function injectOnlineStyles() {
       font-size: 0.82rem;
       margin-bottom: 6px;
     }
+    .og-action-hint {
+      font-size: 0.75rem;
+      color: rgba(255,255,255,0.45);
+      font-style: italic;
+      margin-bottom: 10px;
+      padding: 4px 0;
+    }
 
     /* ── Snail Picker (colored buttons) ── */
     .og-snail-picker {
@@ -1110,7 +1117,7 @@ const ONBOARDING_STEPS = [
   { emoji: "\uD83D\uDC0C", title: "Race Phase", body: "Each turn you can bet on a snail, buy shares, stimulate your managed snail, or skip and roll the dice. Snails race across a 12-space track." },
   { emoji: "\uD83D\uDEE0\uFE0F", title: "Downtime Phase", body: "Between races, everyone acts at once: train snails for a speed bonus, visit the massage parlor to reduce stress, or trade shares on the market." },
   { emoji: "\uD83D\uDCB0", title: "Coins, Shares & Stress", body: "Earn coins from winning bets and share payouts. Snails gain stress from activity \u2014 at 10 stress they\u2019re eliminated. The majority shareholder becomes manager." },
-  { emoji: "\uD83C\uDF1F", title: "You\u2019re Ready!", body: "Check the Activity tab to see what others have done. You can concede anytime from the Actions panel. Good luck, and may the best sponsor win!" },
+  { emoji: "\uD83C\uDF1F", title: "You\u2019re Ready!", body: "Are you smarter than Claude? Claude played this a couple thousand times and got a median score of $112. Try to beat it, meat thing! Check the Activity tab to see what others have done. Good luck!" },
 ];
 
 function renderOnboardingOverlay(forceShow = false) {
@@ -1678,13 +1685,14 @@ function renderActionPanel(container) {
 
   const privateState = onlineState.view.privateState;
   const allowed = privateState?.allowedActions || [];
+  const nonResignActions = allowed.filter(a => a !== "resign");
 
   if (onlineState.view.phase === "complete") {
     const done = document.createElement("div");
     done.className = "og-waiting-msg";
     done.textContent = onlineState.view.status === "archived" ? "Game archived." : "Game complete!";
     panel.appendChild(done);
-  } else if (allowed.length === 0) {
+  } else if (nonResignActions.length === 0) {
     const waiting = document.createElement("div");
     waiting.className = "og-waiting-msg";
     if (onlineState.view.publicState.resigned?.[onlineState.session?.seatIndex]) {
@@ -1894,6 +1902,39 @@ function renderRaceActions(container) {
     container.appendChild(drugGroup);
   }
 
+  // Buy shop share (also available during race)
+  const raceShopGroup = document.createElement("div");
+  raceShopGroup.className = "og-action-group";
+  const raceShopLabel = document.createElement("div");
+  raceShopLabel.className = "og-action-label";
+  raceShopLabel.textContent = "Buy Shop Share";
+  raceShopLabel.dataset.tooltip = "Invest in a business (Colombia, Massage Parlor, Gym). Earn dividends whenever any player uses that shop.";
+  raceShopGroup.appendChild(raceShopLabel);
+
+  const raceShopSelect = document.createElement("select");
+  SHOPS.forEach((shop) => {
+    const opt = document.createElement("option");
+    opt.value = shop;
+    opt.textContent = SHOP_NAMES[shop];
+    raceShopSelect.appendChild(opt);
+  });
+  const raceShopDraft = getDraft("race-buy-shop-share");
+  if (raceShopDraft.value) raceShopSelect.value = raceShopDraft.value;
+  raceShopSelect.addEventListener("change", () => updateDraft("race-buy-shop-share", { value: raceShopSelect.value }));
+  raceShopGroup.appendChild(raceShopSelect);
+
+  const raceShopBtns = document.createElement("div");
+  raceShopBtns.className = "og-action-btns";
+  const raceShopBtn = document.createElement("button");
+  raceShopBtn.className = "og-btn-shop";
+  raceShopBtn.textContent = "Buy Shop Share";
+  raceShopBtn.addEventListener("click", () => {
+    submitIntent({ type: "buy_shop_share", shopKey: raceShopSelect.value || SHOPS[0] });
+  });
+  raceShopBtns.appendChild(raceShopBtn);
+  raceShopGroup.appendChild(raceShopBtns);
+  container.appendChild(raceShopGroup);
+
   // Market actions (select-based, less common)
   renderMarketActions(container);
 
@@ -1949,6 +1990,18 @@ function renderDowntimeActions(container) {
     mBtns.appendChild(mBtn);
     massageGroup.appendChild(mBtns);
     container.appendChild(massageGroup);
+  } else {
+    // Hint: explain why massage is unavailable
+    const isManagerOfAny = SNAILS.some((snail) => {
+      const manager = onlineState.view.publicState.managerMap[snail.color];
+      return manager?.seatIndex === onlineState.view.privateState.seatIndex;
+    });
+    const hint = document.createElement("div");
+    hint.className = "og-action-hint";
+    hint.textContent = isManagerOfAny
+      ? "Massage unavailable \u2014 your managed snails have no stress."
+      : "Massage locked \u2014 become a majority shareholder of a snail to unlock.";
+    container.appendChild(hint);
   }
 
   // Train
@@ -1974,6 +2027,11 @@ function renderDowntimeActions(container) {
     tBtns.appendChild(tBtn);
     trainGroup.appendChild(tBtns);
     container.appendChild(trainGroup);
+  } else {
+    const hint = document.createElement("div");
+    hint.className = "og-action-hint";
+    hint.textContent = "Training locked \u2014 buy snail shares to unlock.";
+    container.appendChild(hint);
   }
 
   // Buy shop share
