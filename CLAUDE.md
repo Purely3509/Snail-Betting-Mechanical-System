@@ -38,18 +38,6 @@ Specifically:
 - After making a change to one mode, always check whether the equivalent logic exists in the other mode and update it too.
 - If adding a new feature to one mode, note in the commit message or PR description whether it was also added to the other mode, and if not, why not.
 
-## Pending Feature Parity: Online → Local
-
-These features exist in the online async mode but are missing from local hotseat. Port them when time allows:
-
-1. **Snail stats cards** — Online has compact colored cards per snail showing stress (with bar), training bonus, and "BOOSTED" drugged indicator. Local only shows stress via a native `title` tooltip on lane labels. Add a visible stats row below the track in local mode.
-
-2. **Activity feed / action history** — Online tracks the last 20 actions (who bet, rolled what, bought shares, etc.) in an Activity tab. Local has no record of previous turns. Add an action log panel to the local game screen.
-
-3. **Buy shop shares during race turns** — Online allows `buy_shop_share` as a valid race-turn action (not just downtime). Local restricts shop share purchases to the downtime screen. Align the mechanics.
-
-4. **Contextual disabled-state hints** — Online shows rich explanations for why an action is locked (e.g., "Massage locked — become a majority shareholder"). Local just disables buttons silently. Add explanatory text or tooltips to disabled actions in local mode.
-
 ## Development Guidance
 
 - Preserve the no-build, no-dependency setup unless the task clearly justifies a structural change.

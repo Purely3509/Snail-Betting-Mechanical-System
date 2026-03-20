@@ -238,6 +238,61 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
   100% { transform: rotate(0deg) scale(1); }
 }
 
+.snail-stats {
+  width: 100%;
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.snail-stat {
+  flex: 1;
+  min-width: 48px;
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 5px 4px;
+  text-align: center;
+  font-size: 0.7rem;
+  border-left: 3px solid transparent;
+}
+.snail-stat .stat-icon { font-size: 0.9rem; }
+.snail-stat .stat-stress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  margin-top: 2px;
+  font-size: 0.65rem;
+}
+.snail-stat .stress-bar {
+  display: inline-block;
+  width: 28px;
+  height: 6px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.snail-stat .stress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+.snail-stat .stat-bonus {
+  color: #2ecc71;
+  font-weight: 700;
+  font-size: 0.65rem;
+  margin-top: 1px;
+}
+.snail-stat .stat-drugged {
+  color: #e74c3c;
+  font-weight: 700;
+  font-size: 0.6rem;
+  margin-top: 1px;
+}
+.snail-stat.eliminated { opacity: 0.35; }
+
 .betting-panel {
   width: 100%;
   background: var(--panel);
@@ -446,6 +501,7 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
 .btn-drug:disabled { background: #555; opacity: 0.6; }
 .btn-market { background: #9b59b6; color: #fff; }
 .btn-market:disabled { background: #555; opacity: 0.6; }
+.action-hint { font-size: 0.75rem; color: rgba(255,255,255,0.45); font-style: italic; margin-top: 6px; padding: 2px 0; }
 
 .negative-coins { color: #e74c3c; }
 
@@ -547,6 +603,49 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
   opacity: 0.85;
   font-size: 0.78rem;
   line-height: 1.6;
+}
+
+/* ── Activity Feed ── */
+#activity-panel {
+  width: 100%;
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+#activity-toggle {
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 4px 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.activity-item {
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.activity-item:last-child { border-bottom: none; }
+.activity-actor { font-weight: 700; }
+.activity-dice {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.activity-die {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #fff;
+  vertical-align: middle;
 }
 
 /* ── Downtime Screen ── */
@@ -679,6 +778,8 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
     <span style="opacity:0.5">Roll dice to start!</span>
   </div>
 
+  <div class="snail-stats" id="snail-stats"></div>
+
   <div class="betting-panel" id="betting-panel">
     <div class="action-tabs" id="action-tabs">
       <button class="active" data-tab="bet" data-tooltip="Wager coins on a snail to win. Earlier bets pay better: 5x/3x/2x/1.5x based on leading snail's position.">Place Bet</button>
@@ -730,6 +831,12 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
   <div id="profit-panel">
     <div id="profit-toggle">Who Profits &#9660;</div>
     <div id="profit-content" style="display:none"></div>
+  </div>
+
+  <!-- Activity Feed -->
+  <div id="activity-panel">
+    <div id="activity-toggle">Activity Log &#9660;</div>
+    <div id="activity-content" style="display:none"></div>
   </div>
 </div>
 
@@ -843,6 +950,7 @@ function initGame(playerNames) {
     downtimeActions: {},
     downtimeSubmitted: {},
     downtimeEliminated: {},
+    activityLog: [],
   };
   SNAILS.forEach(function(s) {
     state.snailShares[s.color] = 0;
@@ -1337,6 +1445,65 @@ function renderSnails() {
   }
 }
 
+function renderSnailStats() {
+  var wrap = document.getElementById('snail-stats');
+  wrap.textContent = '';
+
+  for (var i = 0; i < 6; i++) {
+    var snail = state.snails[i];
+    var isElim = state.eliminated[snail.color];
+    var card = document.createElement('div');
+    card.className = 'snail-stat' + (isElim ? ' eliminated' : '');
+    card.style.borderLeftColor = SNAILS[i].css;
+
+    var icon = document.createElement('div');
+    icon.className = 'stat-icon';
+    icon.textContent = isElim ? '\u274C' : '\u{1F40C}';
+    card.appendChild(icon);
+
+    // Stress bar
+    var stressDiv = document.createElement('div');
+    stressDiv.className = 'stat-stress';
+    var bar = document.createElement('span');
+    bar.className = 'stress-bar';
+    var fill = document.createElement('span');
+    fill.className = 'stress-fill';
+    fill.style.width = Math.min(100, (snail.stress / STRESS_MAX) * 100) + '%';
+    fill.style.background = snail.stress >= 7 ? '#e74c3c' : snail.stress >= 4 ? '#f39c12' : '#2ecc71';
+    bar.appendChild(fill);
+    stressDiv.appendChild(bar);
+    var num = document.createElement('span');
+    num.textContent = snail.stress + '/' + STRESS_MAX;
+    if (snail.stress >= 7) num.style.color = '#e74c3c';
+    else if (snail.stress >= 4) num.style.color = '#f39c12';
+    stressDiv.appendChild(num);
+    card.appendChild(stressDiv);
+
+    // Training bonus
+    var bonus = state.trainingBonus[snail.color] || 0;
+    if (bonus > 0) {
+      var bonusEl = document.createElement('div');
+      bonusEl.className = 'stat-bonus';
+      bonusEl.textContent = '+' + bonus + ' spd';
+      card.appendChild(bonusEl);
+    }
+
+    // Drugged
+    if (state.drugged[snail.color]) {
+      var drugEl = document.createElement('div');
+      drugEl.className = 'stat-drugged';
+      drugEl.textContent = 'BOOSTED';
+      card.appendChild(drugEl);
+    }
+
+    card.dataset.tooltip = isElim
+      ? capitalize(snail.color) + ' is eliminated (stress reached ' + STRESS_MAX + ').'
+      : capitalize(snail.color) + ' \u2014 Stress: ' + snail.stress + '/' + STRESS_MAX + '. At ' + STRESS_MAX + ' the snail is eliminated.';
+
+    wrap.appendChild(card);
+  }
+}
+
 function renderHeader() {
   var p = state.players[state.currentPlayerIndex];
   document.getElementById('round-info').textContent = 'Race ' + state.raceNumber + '/' + TOTAL_RACES + ' | Turn ' + state.round;
@@ -1392,6 +1559,9 @@ function renderBettingPanel() {
     btnDrug.style.display = 'none';
     btnBuyListing.style.display = 'none';
 
+    // Clear old hints
+    document.querySelectorAll('.action-hint').forEach(function(h) { h.remove(); });
+
     if (activeTab === 'bet') {
       betTab.style.display = '';
       btnBet.style.display = '';
@@ -1399,17 +1569,42 @@ function renderBettingPanel() {
       renderSnailPicker();
       document.getElementById('wager-amount').textContent = wager;
       btnBet.disabled = !selectedSnail || !canAfford(player, wager) || wager < MIN_WAGER;
+      if (btnBet.disabled) {
+        var hint = document.createElement('div');
+        hint.className = 'action-hint';
+        hint.textContent = !selectedSnail ? 'Select a snail to bet on.'
+          : !canAfford(player, wager) ? 'Not enough coins \u2014 lower your wager or earn more.'
+          : 'Minimum wager is $' + MIN_WAGER + '.';
+        btnBet.parentNode.insertBefore(hint, btnBet.nextSibling);
+      }
     } else if (activeTab === 'share') {
       shareTab.style.display = '';
       btnShare.style.display = '';
       renderSharePicker();
       btnShare.disabled = !selectedSnail || !canAfford(player, SHARE_COST)
         || (state.snailShares[selectedSnail] || 0) >= MAX_SHARES_PER_SNAIL;
+      if (btnShare.disabled) {
+        var hint = document.createElement('div');
+        hint.className = 'action-hint';
+        hint.textContent = !selectedSnail ? 'Select a snail to buy shares of.'
+          : (state.snailShares[selectedSnail] || 0) >= MAX_SHARES_PER_SNAIL ? 'Max shares reached for this snail.'
+          : 'Not enough coins \u2014 you need $' + SHARE_COST + '.';
+        btnShare.parentNode.insertBefore(hint, btnShare.nextSibling);
+      }
     } else if (activeTab === 'drug') {
       drugTab.style.display = '';
       btnDrug.style.display = '';
       renderDrugPicker();
       btnDrug.disabled = !selectedSnail || state.drugged[selectedSnail] || state.eliminated[selectedSnail] || !canAfford(player, DRUG_COST);
+      if (btnDrug.disabled) {
+        var hint = document.createElement('div');
+        hint.className = 'action-hint';
+        hint.textContent = !selectedSnail ? 'Select a snail to stimulate.'
+          : state.eliminated[selectedSnail] ? 'This snail has been eliminated.'
+          : state.drugged[selectedSnail] ? 'Already stimulated this race.'
+          : 'Not enough coins \u2014 you need $' + DRUG_COST + '.';
+        btnDrug.parentNode.insertBefore(hint, btnDrug.nextSibling);
+      }
     } else if (activeTab === 'market') {
       marketTab.style.display = '';
       renderMarketTab();
@@ -1569,7 +1764,9 @@ function renderMarketTab() {
       }
       (function(lid) {
         buyBtn.addEventListener('click', function() {
+          var listingObj = state.marketListings.find(function(l) { return l.id === lid; });
           if (buyListing(state.currentPlayerIndex, lid)) {
+            logActivity({ actor: state.players[state.currentPlayerIndex].name, action: 'bought ' + capitalize(listingObj.assetKey) + ' from market' });
             state.turnPhase = 'rolling';
             renderAll();
             doRoll();
@@ -1580,6 +1777,36 @@ function renderMarketTab() {
       listingsDiv.appendChild(row);
     });
   }
+
+  // Buy shop shares section
+  var shopDiv = document.createElement('div');
+  shopDiv.style.cssText = 'margin-bottom:12px;';
+  var shopLabel = document.createElement('div');
+  shopLabel.style.cssText = 'font-weight:700;font-size:0.85rem;margin-bottom:6px;';
+  shopLabel.textContent = 'Buy Shop Share ($' + SHARE_COST + '):';
+  shopDiv.appendChild(shopLabel);
+  var shopBtnRow = document.createElement('div');
+  shopBtnRow.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;';
+  SHOPS.forEach(function(shopKey) {
+    var owned = player.shopShares[shopKey] || 0;
+    var btn = document.createElement('button');
+    btn.style.cssText = 'padding:8px 12px;border-radius:8px;border:1px solid #555;background:var(--bg);color:var(--text);font-size:0.82rem;min-height:44px;cursor:pointer;flex:1;min-width:90px;';
+    btn.textContent = SHOP_NAMES[shopKey] + ' (' + owned + ')';
+    btn.disabled = !canAfford(player, SHARE_COST);
+    (function(key) {
+      btn.addEventListener('click', function() {
+        if (buyShopShare(state.currentPlayerIndex, key)) {
+          logActivity({ actor: player.name, action: 'bought ' + SHOP_NAMES[key] + ' shop share' });
+          state.turnPhase = 'rolling';
+          renderAll();
+          doRoll();
+        }
+      });
+    })(shopKey);
+    shopBtnRow.appendChild(btn);
+  });
+  shopDiv.appendChild(shopBtnRow);
+  sellDiv.parentNode.insertBefore(shopDiv, sellDiv);
 
   // Sell section — let current player list shares for sale
   var hasAssets = false;
@@ -1746,6 +1973,56 @@ function renderInfoPanel() {
 
 // ── Who Profits Panel ──
 
+function renderActivityFeed() {
+  var content = document.getElementById('activity-content');
+  if (!content || content.style.display === 'none') return;
+  content.textContent = '';
+
+  if (state.activityLog.length === 0) {
+    content.textContent = 'No activity yet';
+    content.style.opacity = '0.6';
+    return;
+  }
+  content.style.opacity = '1';
+
+  state.activityLog.forEach(function(entry) {
+    var item = document.createElement('div');
+    item.className = 'activity-item';
+
+    var actor = document.createElement('span');
+    actor.className = 'activity-actor';
+    actor.textContent = escapeHTML(entry.actor);
+    item.appendChild(actor);
+
+    item.appendChild(document.createTextNode(' ' + entry.action));
+
+    if (entry.dice && entry.dice.length > 0) {
+      item.appendChild(document.createTextNode(' \u2014 rolled '));
+      var diceWrap = document.createElement('span');
+      diceWrap.className = 'activity-dice';
+      entry.dice.forEach(function(idx) {
+        var die = document.createElement('span');
+        die.className = 'activity-die';
+        die.style.background = SNAILS[idx].css;
+        die.textContent = SNAILS[idx].label;
+        diceWrap.appendChild(die);
+      });
+      item.appendChild(diceWrap);
+    }
+
+    if (entry.winner) {
+      item.appendChild(document.createTextNode(' '));
+      var winSpan = document.createElement('span');
+      winSpan.style.color = '#f1c40f';
+      winSpan.style.fontWeight = '700';
+      winSpan.textContent = '\u{1F3C6} ' + capitalize(entry.winner) + ' wins!';
+      item.appendChild(winSpan);
+    }
+
+    content.appendChild(item);
+  });
+}
+
 function renderProfitPanel() {
   var content = document.getElementById('profit-content');
   content.textContent = '';
@@ -1864,6 +2141,7 @@ function renderAll() {
   renderHeader();
   renderSnails();
   buildPayoutZones();
+  renderSnailStats();
   renderBettingPanel();
   renderInfoPanel();
   renderProfitPanel();
@@ -1904,12 +2182,22 @@ function animateDiceRoll(callback) {
   }, 80);
 }
 
+// ── Activity Log ──
+
+var MAX_ACTIVITY = 20;
+
+function logActivity(entry) {
+  state.activityLog.unshift(entry);
+  if (state.activityLog.length > MAX_ACTIVITY) state.activityLog.length = MAX_ACTIVITY;
+}
+
 // ── Actions ──
 
 function doPlaceBet() {
   if (animating || !selectedSnail) return;
   var ok = placeBet(state.currentPlayerIndex, selectedSnail, wager);
   if (!ok) return;
+  logActivity({ actor: state.players[state.currentPlayerIndex].name, action: 'bet $' + wager + ' on ' + capitalize(selectedSnail) + ' @' + calculateMultiplier() + 'x' });
   state.turnPhase = 'rolling';
   renderAll();
   doRoll();
@@ -1919,6 +2207,7 @@ function doBuyShare() {
   if (animating || !selectedSnail) return;
   var ok = buyShare(state.currentPlayerIndex, selectedSnail);
   if (!ok) return;
+  logActivity({ actor: state.players[state.currentPlayerIndex].name, action: 'bought ' + capitalize(selectedSnail) + ' share' });
   state.turnPhase = 'rolling';
   renderAll();
   doRoll();
@@ -1928,6 +2217,7 @@ function doDrugSnail() {
   if (animating || !selectedSnail) return;
   var ok = drugSnail(state.currentPlayerIndex, selectedSnail);
   if (!ok) return;
+  logActivity({ actor: state.players[state.currentPlayerIndex].name, action: 'stimulated ' + capitalize(selectedSnail) });
   state.turnPhase = 'rolling';
   renderAll();
   doRoll();
@@ -1935,6 +2225,7 @@ function doDrugSnail() {
 
 function doSkipAndRoll() {
   if (animating) return;
+  logActivity({ actor: state.players[state.currentPlayerIndex].name, action: 'skipped' });
   state.turnPhase = 'rolling';
   renderBettingPanel();
   doRoll();
@@ -1946,12 +2237,17 @@ function doRoll() {
     renderDice(dice);
     moveSnails(dice);
     state.lastRoll = dice;
+    // Attach dice to the most recent activity entry
+    if (state.activityLog.length > 0) state.activityLog[0].dice = dice;
     renderSnails();
     buildPayoutZones();
+    renderSnailStats();
+    renderActivityFeed();
 
     setTimeout(function() {
       var winner = checkWin();
       if (winner) {
+        if (state.activityLog.length > 0) state.activityLog[0].winner = winner.color;
         var ranking = getRaceRanking();
         resolveBets(winner.color);
         var shareLog = resolveShares(ranking);
@@ -2239,6 +2535,14 @@ function renderDowntimeActionsForPlayer(panel, playerIdx) {
     showDowntimeSubAction(panel, playerIdx, 'massage');
   });
   actionsDiv.appendChild(massageBtn);
+  if (!canMassage) {
+    var mHint = document.createElement('div');
+    mHint.className = 'action-hint';
+    mHint.textContent = managed.length === 0 ? 'Massage locked \u2014 become a majority shareholder of a snail to unlock.'
+      : !canAfford(player, MASSAGE_COST) ? 'Not enough coins \u2014 you need $' + MASSAGE_COST + '.'
+      : 'Your managed snails have no stress.';
+    actionsDiv.appendChild(mHint);
+  }
 
   // 2. Train
   var canTrain = false;
@@ -2255,6 +2559,15 @@ function renderDowntimeActionsForPlayer(panel, playerIdx) {
     showDowntimeSubAction(panel, playerIdx, 'train');
   });
   actionsDiv.appendChild(trainBtn);
+  if (!canTrain) {
+    var tHint = document.createElement('div');
+    tHint.className = 'action-hint';
+    var hasShares = false;
+    SNAILS.forEach(function(s) { if ((player.shares[s.color] || 0) > 0) hasShares = true; });
+    tHint.textContent = !hasShares ? 'Training locked \u2014 buy snail shares to unlock.'
+      : 'Not enough coins \u2014 you need $' + TRAIN_COST + '.';
+    actionsDiv.appendChild(tHint);
+  }
 
   // 3. Buy Shop Share
   var buyShopBtn = document.createElement('button');
@@ -2266,6 +2579,12 @@ function renderDowntimeActionsForPlayer(panel, playerIdx) {
     showDowntimeSubAction(panel, playerIdx, 'buyShop');
   });
   actionsDiv.appendChild(buyShopBtn);
+  if (!canAfford(player, SHARE_COST)) {
+    var sHint = document.createElement('div');
+    sHint.className = 'action-hint';
+    sHint.textContent = 'Not enough coins \u2014 you need $' + SHARE_COST + '.';
+    actionsDiv.appendChild(sHint);
+  }
 
   // 4. Sell a Share
   var hasAssets = false;
@@ -2281,6 +2600,12 @@ function renderDowntimeActionsForPlayer(panel, playerIdx) {
     showDowntimeSubAction(panel, playerIdx, 'sell');
   });
   actionsDiv.appendChild(sellBtn);
+  if (!hasAssets) {
+    var sellHint = document.createElement('div');
+    sellHint.className = 'action-hint';
+    sellHint.textContent = 'No shares to sell \u2014 buy snail or shop shares first.';
+    actionsDiv.appendChild(sellHint);
+  }
 
   // 5. Pass
   var passBtn = document.createElement('button');
@@ -2672,6 +2997,15 @@ document.getElementById('profit-toggle').addEventListener('click', function() {
   content.style.display = profitPanelOpen ? '' : 'none';
   document.getElementById('profit-toggle').textContent = profitPanelOpen ? 'Who Profits \u25B2' : 'Who Profits \u25BC';
   if (profitPanelOpen) renderProfitPanel();
+});
+
+var activityPanelOpen = false;
+document.getElementById('activity-toggle').addEventListener('click', function() {
+  activityPanelOpen = !activityPanelOpen;
+  var content = document.getElementById('activity-content');
+  content.style.display = activityPanelOpen ? '' : 'none';
+  document.getElementById('activity-toggle').textContent = activityPanelOpen ? 'Activity Log \u25B2' : 'Activity Log \u25BC';
+  if (activityPanelOpen) renderActivityFeed();
 });
 
 // ── Tab switching ──
