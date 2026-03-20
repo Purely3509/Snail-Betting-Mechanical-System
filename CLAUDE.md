@@ -12,15 +12,43 @@ When making changes, treat the existing game as the baseline to evolve rather th
 
 ## Architecture
 
-Single-file application: everything currently lives in `index.html` - HTML structure, CSS styles, and the vanilla JS game engine are all inline. There are no dependencies, no build step, and no framework.
+There are **two parallel implementations** of the game that share no code:
+
+### Local Hotseat Mode (`index.html`)
+Single-file application: HTML, CSS, and vanilla JS game engine are all inline. No dependencies, no build step, no framework. Game state is a single mutable `state` object; functions mutate it directly.
 
 **To run:** Open `index.html` in a browser. No server required.
 
-**Three screens** are currently managed by toggling the `.active` class: setup (player count and names), game (track, betting, and dice), and game over (standings and high score).
+### Online Async Mode (`app/`)
+ES module architecture across four files:
+- `app/async-engine.js` — Pure-function game engine (takes state, returns new state). Also runs server-side in Supabase edge functions.
+- `app/online-ui.js` — Full UI layer with its own CSS (injected, `og-` prefixed classes), rendering, and screen management.
+- `app/online-api.js` — Networking layer (Supabase edge function calls, session tokens, polling).
+- `app/online-view-state.js` — Version-based view reconciliation for async responses.
 
-**Game state** is currently stored in a single `state` object holding players, snails, current turn, round counter, and bets. Core game logic functions read and mutate this object directly.
+**Rendering** in both modes uses direct DOM manipulation (`textContent`, `createElement`) and should continue to avoid unsafe insertion of user-controlled content.
 
-**Rendering** uses direct DOM manipulation (`textContent`, `createElement`) and should continue to avoid unsafe insertion of user-controlled content.
+## Dual-Mode Sync Rule
+
+**When changing any game mechanic, rule, constant, balance value, UI component, or visual feature, the change MUST be applied to BOTH modes unless the feature is inherently mode-specific** (e.g., networking, polling, invite links, resign/concede are online-only; high score is local-only).
+
+Specifically:
+- **Game rules and constants** are duplicated in `index.html` (global vars/functions) and `app/async-engine.js` (ES module exports). Any rule change must update both.
+- **Rendering and CSS** are duplicated in `index.html` (inline) and `app/online-ui.js` (injected styles with `og-` prefix). Any visual change must update both.
+- After making a change to one mode, always check whether the equivalent logic exists in the other mode and update it too.
+- If adding a new feature to one mode, note in the commit message or PR description whether it was also added to the other mode, and if not, why not.
+
+## Pending Feature Parity: Online → Local
+
+These features exist in the online async mode but are missing from local hotseat. Port them when time allows:
+
+1. **Snail stats cards** — Online has compact colored cards per snail showing stress (with bar), training bonus, and "BOOSTED" drugged indicator. Local only shows stress via a native `title` tooltip on lane labels. Add a visible stats row below the track in local mode.
+
+2. **Activity feed / action history** — Online tracks the last 20 actions (who bet, rolled what, bought shares, etc.) in an Activity tab. Local has no record of previous turns. Add an action log panel to the local game screen.
+
+3. **Buy shop shares during race turns** — Online allows `buy_shop_share` as a valid race-turn action (not just downtime). Local restricts shop share purchases to the downtime screen. Align the mechanics.
+
+4. **Contextual disabled-state hints** — Online shows rich explanations for why an action is locked (e.g., "Massage locked — become a majority shareholder"). Local just disables buttons silently. Add explanatory text or tooltips to disabled actions in local mode.
 
 ## Development Guidance
 

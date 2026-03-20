@@ -241,6 +241,33 @@ function injectOnlineStyles() {
       border-radius: 3px;
       position: relative;
     }
+    .og-track-cell.og-threshold-border {
+      border-right: 2px solid rgba(255,255,255,0.25);
+      border-radius: 3px 0 0 3px;
+    }
+    .og-payout-zones {
+      display: grid;
+      grid-template-columns: 30px repeat(${DEFAULTS.trackLength}, 1fr) 30px;
+      gap: 2px;
+      min-width: 320px;
+      margin-bottom: 2px;
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .og-payout-zone {
+      text-align: center;
+      padding: 3px 0;
+      border-radius: 4px;
+      color: rgba(255,255,255,0.5);
+      background: rgba(255,255,255,0.04);
+      transition: all 0.3s ease;
+    }
+    .og-payout-zone.active {
+      color: #fff;
+      background: rgba(255,255,255,0.12);
+      text-shadow: 0 0 6px rgba(255,255,255,0.3);
+    }
     .og-finish-cell {
       background: rgba(255,255,255,0.1);
       display: flex;
@@ -259,6 +286,44 @@ function injectOnlineStyles() {
       justify-content: center;
       font-size: 1.1rem;
       z-index: 2;
+    }
+
+    /* ── Dice Display ── */
+    .og-dice-display {
+      width: 100%;
+      background: var(--panel);
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 8px;
+      text-align: center;
+      min-height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      font-size: 0.95rem;
+    }
+    .og-die {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    }
+    .og-die.rolling {
+      animation: ogDiceRoll 0.1s infinite;
+    }
+    @keyframes ogDiceRoll {
+      0% { transform: rotate(0deg) scale(1); }
+      25% { transform: rotate(10deg) scale(1.05); }
+      50% { transform: rotate(-5deg) scale(0.95); }
+      75% { transform: rotate(8deg) scale(1.02); }
+      100% { transform: rotate(0deg) scale(1); }
     }
 
     /* ── Snail Stats Row ── */
@@ -381,6 +446,80 @@ function injectOnlineStyles() {
       font-size: 0.95rem;
       opacity: 0.7;
     }
+    /* ── Game Over Panel ── */
+    .og-gameover-title {
+      text-align: center;
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .og-race-recap {
+      font-size: 0.95rem;
+      padding: 10px 16px;
+      background: var(--panel);
+      border-radius: 10px;
+      margin-bottom: 12px;
+    }
+    .og-podium { width: 100%; margin-bottom: 12px; }
+    .og-podium-entry {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background: var(--panel);
+      border-radius: 10px;
+      margin-bottom: 6px;
+      font-size: 1.05rem;
+    }
+    .og-podium-entry.winner {
+      background: linear-gradient(135deg, #f1c40f33, #f39c1233);
+      border: 1px solid #f1c40f;
+    }
+    .og-podium-entry.resigned { opacity: 0.5; }
+    .og-podium-rank { font-weight: 700; margin-right: 10px; }
+    .og-podium-coins { font-weight: 700; color: #f1c40f; }
+    .og-podium-coins.negative { color: #e74c3c; }
+
+    /* ── Race Results Summary ── */
+    .og-race-results {
+      background: var(--panel);
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 12px;
+    }
+    .og-race-results h3 {
+      margin: 0 0 8px 0;
+      font-size: 1rem;
+    }
+    .og-result-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+      font-size: 0.9rem;
+    }
+    .og-result-row.debt-warning { color: #e74c3c; }
+    .og-stress-bar-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: 6px;
+    }
+    .og-stress-bar {
+      display: inline-block;
+      width: 50px;
+      height: 8px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .og-stress-fill {
+      display: block;
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.3s;
+    }
+
     .og-action-group {
       margin-bottom: 12px;
     }
@@ -823,6 +962,7 @@ function mountOnlineScreen() {
     <div class="og-error" id="og-error"></div>
     <div id="og-lobby"></div>
     <div id="og-track-wrap"></div>
+    <div id="og-dice-display" class="og-dice-display"></div>
     <div id="og-snail-stats-wrap"></div>
     <div id="og-info-wrap"></div>
     <div id="og-tabs-wrap"></div>
@@ -1199,6 +1339,7 @@ function renderOnlineScreen() {
   if (onlineState.view.phase === "lobby") {
     renderLobby();
     document.getElementById("og-track-wrap").textContent = "";
+    document.getElementById("og-dice-display").textContent = "";
     document.getElementById("og-snail-stats-wrap").textContent = "";
     document.getElementById("og-info-wrap").textContent = "";
     document.getElementById("og-tabs-wrap").textContent = "";
@@ -1208,6 +1349,7 @@ function renderOnlineScreen() {
 
   document.getElementById("og-lobby").textContent = "";
   renderTrack();
+  if (!ogAnimating) renderDiceDisplay(onlineState.view.publicState?.lastRoll);
   renderSnailStats();
   renderInfoPanel();
   renderTabs();
@@ -1411,11 +1553,35 @@ function renderTrack() {
   const container = document.createElement("div");
   container.className = "og-track-container";
 
+  // Payout zones bar
+  const snails = onlineState.view.publicState.snails;
+  const lead = Math.max(...snails.map((s) => s.position));
+  const zonesRow = document.createElement("div");
+  zonesRow.className = "og-payout-zones";
+  zonesRow.appendChild(document.createElement("div")); // spacer for lane label
+  // Zone defs: [label, startPos, span in cols, endPos] — positions are what snails occupy
+  const zoneDefs = [
+    ["5\u00D7", 0, 2, 2],
+    ["3\u00D7", 3, 3, 5],
+    ["2\u00D7", 6, 2, 7],
+    ["1.5\u00D7", 8, 3, 10],
+  ];
+  zoneDefs.forEach(([label, startPos, span, endPos]) => {
+    const zone = document.createElement("div");
+    zone.className = "og-payout-zone";
+    zone.style.gridColumn = `span ${span}`;
+    zone.textContent = label;
+    if (lead >= startPos && lead <= endPos) zone.classList.add("active");
+    zonesRow.appendChild(zone);
+  });
+  zonesRow.appendChild(document.createElement("div")); // spacer for finish
+  container.appendChild(zonesRow);
+
   const track = document.createElement("div");
   track.className = "og-track";
 
   const trackLen = DEFAULTS.trackLength;
-  const snails = onlineState.view.publicState.snails;
+  const thresholdCols = [2, 5, 7]; // right edges of 5x, 3x, 2x zones (col = position)
 
   snails.forEach((snail, row) => {
     const label = document.createElement("div");
@@ -1427,6 +1593,7 @@ function renderTrack() {
     for (let col = 1; col <= trackLen; col++) {
       const cell = document.createElement("div");
       cell.className = "og-track-cell";
+      if (thresholdCols.includes(col)) cell.classList.add("og-threshold-border");
       if (snail.position === col) {
         const marker = document.createElement("div");
         marker.className = "og-snail";
@@ -1445,6 +1612,81 @@ function renderTrack() {
 
   container.appendChild(track);
   wrap.appendChild(container);
+}
+
+/* ═══════════════════════════════════════════
+   DICE DISPLAY + ANIMATION
+   ═══════════════════════════════════════════ */
+
+function renderDiceDisplay(dieIndices) {
+  const display = document.getElementById("og-dice-display");
+  if (!display) return;
+  display.textContent = "";
+
+  if (!dieIndices || !Array.isArray(dieIndices) || dieIndices.length === 0) {
+    const hint = document.createElement("span");
+    hint.style.opacity = "0.5";
+    hint.textContent = onlineState.view?.phase === "race_turn" ? "Waiting for dice roll\u2026" : "";
+    display.appendChild(hint);
+    return;
+  }
+
+  dieIndices.forEach((idx, i) => {
+    if (i > 0) {
+      const plus = document.createElement("span");
+      plus.textContent = "+";
+      display.appendChild(plus);
+    }
+    const die = document.createElement("div");
+    die.className = "og-die";
+    die.style.background = SNAILS[idx] ? SNAILS[idx].css : "#888";
+    die.textContent = SNAILS[idx] ? SNAILS[idx].label : "?";
+    display.appendChild(die);
+  });
+
+  if (dieIndices[0] === dieIndices[1]) {
+    const dbl = document.createElement("span");
+    dbl.style.color = "#f1c40f";
+    dbl.style.fontWeight = "700";
+    dbl.textContent = " Double!";
+    display.appendChild(dbl);
+  }
+}
+
+let ogAnimating = false;
+
+function animateOnlineDice(finalDice, callback) {
+  const display = document.getElementById("og-dice-display");
+  if (!display) { callback(); return; }
+  ogAnimating = true;
+  let ticks = 0;
+  const maxTicks = 12;
+
+  const interval = setInterval(() => {
+    const r1 = Math.floor(Math.random() * 6);
+    const r2 = Math.floor(Math.random() * 6);
+    display.textContent = "";
+    [r1, r2].forEach((idx, i) => {
+      if (i > 0) {
+        const plus = document.createElement("span");
+        plus.textContent = "+";
+        display.appendChild(plus);
+      }
+      const die = document.createElement("div");
+      die.className = "og-die rolling";
+      die.style.background = SNAILS[idx] ? SNAILS[idx].css : "#888";
+      die.textContent = SNAILS[idx] ? SNAILS[idx].label : "?";
+      display.appendChild(die);
+    });
+
+    ticks++;
+    if (ticks >= maxTicks) {
+      clearInterval(interval);
+      ogAnimating = false;
+      renderDiceDisplay(finalDice);
+      callback();
+    }
+  }, 80);
 }
 
 /* ═══════════════════════════════════════════
@@ -1511,6 +1753,54 @@ function renderSnailStats() {
 }
 
 /* ═══════════════════════════════════════════
+   MONTE CARLO WIN PROBABILITY SIMULATION
+   ═══════════════════════════════════════════ */
+
+const SIM_RUNS = 1000;
+
+function simulateWinProbabilities() {
+  const snails = onlineState.view?.publicState?.snails;
+  if (!snails) return {};
+  const trackLen = DEFAULTS.trackLength;
+  const positions = snails.map((s) => s.position);
+  const elim = snails.map((s) => s.eliminated);
+  const bonuses = snails.map((s) => s.trainingBonus || 0);
+  const wins = [0, 0, 0, 0, 0, 0];
+
+  for (let r = 0; r < SIM_RUNS; r++) {
+    const simPos = positions.slice();
+    let maxIter = 100;
+    while (maxIter-- > 0) {
+      const d1 = Math.floor(Math.random() * 6);
+      const d2 = Math.floor(Math.random() * 6);
+      if (!elim[d1]) simPos[d1] = Math.min(simPos[d1] + 1 + bonuses[d1], trackLen);
+      if (!elim[d2]) simPos[d2] = Math.min(simPos[d2] + 1 + bonuses[d2], trackLen);
+
+      let best = -1;
+      let bestPos = -1;
+      for (let i = 0; i < 6; i++) {
+        if (!elim[i] && simPos[i] >= trackLen && simPos[i] > bestPos) {
+          bestPos = simPos[i];
+          best = i;
+        } else if (!elim[i] && simPos[i] >= trackLen && simPos[i] === bestPos && (best === -1 || i < best)) {
+          best = i;
+        }
+      }
+      if (best !== -1) {
+        wins[best]++;
+        break;
+      }
+    }
+  }
+
+  const probs = {};
+  for (let j = 0; j < 6; j++) {
+    probs[SNAILS[j].color] = Math.round((wins[j] / SIM_RUNS) * 100);
+  }
+  return probs;
+}
+
+/* ═══════════════════════════════════════════
    INFO PANEL (standings + your bets/shares)
    ═══════════════════════════════════════════ */
 
@@ -1571,6 +1861,7 @@ function renderInfoPanel() {
       betsLabel.style.opacity = "0.7";
       betsLabel.textContent = "Bets: ";
       betsDiv.appendChild(betsLabel);
+      const probs = onlineState.view.phase === "race_turn" ? simulateWinProbabilities() : {};
       privateState.bets.forEach((bet) => {
         const tag = document.createElement("span");
         tag.className = "og-tag";
@@ -1580,6 +1871,13 @@ function renderInfoPanel() {
         detail.className = "og-tag-detail";
         detail.textContent = ` @${bet.multiplier}x`;
         tag.appendChild(detail);
+        if (probs[bet.snailColor] !== undefined) {
+          const odds = document.createElement("span");
+          odds.className = "og-tag-detail";
+          odds.style.opacity = "0.8";
+          odds.textContent = ` (${probs[bet.snailColor]}%)`;
+          tag.appendChild(odds);
+        }
         betsDiv.appendChild(tag);
       });
       panel.appendChild(betsDiv);
@@ -1676,6 +1974,216 @@ function renderTabContent() {
 }
 
 /* ═══════════════════════════════════════════
+   RACE RESULTS SUMMARY (shown during downtime)
+   ═══════════════════════════════════════════ */
+
+function renderRaceResultsSummary(container) {
+  const pub = onlineState.view.publicState;
+  if (!pub.raceResults || pub.raceResults.length === 0) return;
+
+  const result = pub.raceResults[pub.raceResults.length - 1];
+  const section = document.createElement("div");
+  section.className = "og-race-results";
+
+  // Title
+  const title = document.createElement("h3");
+  title.textContent = `Race ${result.raceNumber} Complete!`;
+  section.appendChild(title);
+
+  // Finish order
+  const placeLabels = ["1st", "2nd", "3rd", "4th", "5th", "6th"];
+  if (result.ranking) {
+    result.ranking.forEach((entry, i) => {
+      const s = SNAILS.find((sn) => sn.color === entry.color);
+      const row = document.createElement("div");
+      row.className = "og-result-row";
+      if (entry.eliminated) row.style.opacity = "0.4";
+
+      const left = document.createElement("span");
+      left.textContent = `${placeLabels[i]} `;
+      const colorSpan = document.createElement("span");
+      colorSpan.style.color = s ? s.css : "#fff";
+      colorSpan.style.fontWeight = "700";
+      colorSpan.textContent = `${entry.color.charAt(0).toUpperCase() + entry.color.slice(1)}${entry.eliminated ? " (eliminated)" : ""}`;
+      left.appendChild(colorSpan);
+      row.appendChild(left);
+
+      const posSpan = document.createElement("span");
+      posSpan.style.opacity = "0.6";
+      posSpan.textContent = entry.eliminated ? "stress KO" : `pos ${entry.position}`;
+      row.appendChild(posSpan);
+
+      section.appendChild(row);
+    });
+  }
+
+  // Share payouts
+  if (result.shareLog && result.shareLog.length > 0) {
+    const payoutTitle = document.createElement("h3");
+    payoutTitle.textContent = "Share Payouts";
+    payoutTitle.style.marginTop = "10px";
+    section.appendChild(payoutTitle);
+
+    result.shareLog.forEach((entry) => {
+      const row = document.createElement("div");
+      row.className = "og-result-row";
+      const left = document.createElement("span");
+      left.textContent = `${entry.playerName}: ${entry.count} ${entry.snailColor.charAt(0).toUpperCase() + entry.snailColor.slice(1)} share${entry.count > 1 ? "s" : ""}`;
+      row.appendChild(left);
+      const right = document.createElement("span");
+      right.style.color = "#2ecc71";
+      right.style.fontWeight = "700";
+      right.textContent = `+$${entry.total}`;
+      row.appendChild(right);
+      section.appendChild(row);
+    });
+  } else {
+    const noShares = document.createElement("div");
+    noShares.style.opacity = "0.6";
+    noShares.style.marginTop = "6px";
+    noShares.textContent = "No share payouts this race";
+    section.appendChild(noShares);
+  }
+
+  // Debt servicing
+  if (result.debtLog && result.debtLog.length > 0) {
+    const debtTitle = document.createElement("h3");
+    debtTitle.textContent = "Debt Servicing";
+    debtTitle.style.marginTop = "10px";
+    section.appendChild(debtTitle);
+
+    result.debtLog.forEach((entry) => {
+      const row = document.createElement("div");
+      row.className = "og-result-row debt-warning";
+      const left = document.createElement("span");
+      left.textContent = entry.playerName;
+      row.appendChild(left);
+      const right = document.createElement("span");
+      right.textContent = `-$${entry.fee} (now $${entry.newBalance})`;
+      row.appendChild(right);
+      section.appendChild(row);
+    });
+  }
+
+  // Snail stress overview
+  const snails = pub.snails;
+  if (snails) {
+    const stressTitle = document.createElement("h3");
+    stressTitle.textContent = "Snail Stress";
+    stressTitle.style.marginTop = "10px";
+    section.appendChild(stressTitle);
+
+    snails.forEach((snail) => {
+      const s = SNAILS.find((sn) => sn.color === snail.color);
+      const row = document.createElement("div");
+      row.className = "og-result-row";
+      row.style.alignItems = "center";
+
+      const left = document.createElement("span");
+      left.style.display = "flex";
+      left.style.alignItems = "center";
+      left.style.gap = "8px";
+
+      const dot = document.createElement("span");
+      dot.style.cssText = `display:inline-block;width:12px;height:12px;border-radius:50%;background:${s ? s.css : "#888"}`;
+      left.appendChild(dot);
+      left.appendChild(document.createTextNode(snail.color.charAt(0).toUpperCase() + snail.color.slice(1)));
+
+      const stressWrap = document.createElement("span");
+      stressWrap.className = "og-stress-bar-wrap";
+
+      const bar = document.createElement("span");
+      bar.className = "og-stress-bar";
+      const fill = document.createElement("span");
+      fill.className = "og-stress-fill";
+      const stressMax = DEFAULTS.stressMax;
+      fill.style.width = `${Math.min(100, (snail.stress / stressMax) * 100)}%`;
+      fill.style.background = snail.stress >= 7 ? "#e74c3c" : snail.stress >= 4 ? "#f39c12" : "#2ecc71";
+      bar.appendChild(fill);
+      stressWrap.appendChild(bar);
+
+      const num = document.createElement("span");
+      num.style.fontSize = "0.75rem";
+      num.style.fontWeight = "700";
+      num.textContent = `${snail.stress}/${stressMax}`;
+      if (snail.stress >= 7) num.style.color = "#e74c3c";
+      stressWrap.appendChild(num);
+
+      left.appendChild(stressWrap);
+      row.appendChild(left);
+      section.appendChild(row);
+    });
+  }
+
+  container.appendChild(section);
+}
+
+/* ═══════════════════════════════════════════
+   GAME OVER PANEL
+   ═══════════════════════════════════════════ */
+
+function renderGameOver(panel) {
+  const view = onlineState.view;
+  const pub = view.publicState;
+
+  // Title
+  const title = document.createElement("div");
+  title.className = "og-gameover-title";
+  title.textContent = view.status === "archived" ? "Game Archived" : "\uD83C\uDFC6 Game Over!";
+  panel.appendChild(title);
+
+  // Race winners recap
+  if (pub.raceResults && pub.raceResults.length > 0) {
+    const recap = document.createElement("div");
+    recap.className = "og-race-recap";
+    pub.raceResults.forEach((result) => {
+      const winnerColor = result.ranking?.[0]?.color;
+      if (!winnerColor) return;
+      const s = SNAILS.find((sn) => sn.color === winnerColor);
+      const line = document.createElement("div");
+      line.textContent = `Race ${result.raceNumber}: `;
+      const colorSpan = document.createElement("span");
+      colorSpan.style.color = s ? s.css : "#fff";
+      colorSpan.style.fontWeight = "700";
+      colorSpan.textContent = `${winnerColor.charAt(0).toUpperCase() + winnerColor.slice(1)} \uD83D\uDC0C`;
+      line.appendChild(colorSpan);
+      recap.appendChild(line);
+    });
+    panel.appendChild(recap);
+  }
+
+  // Podium — use finalRanking if available, else fall back to standings
+  const ranking = pub.finalRanking || pub.standings || [];
+  const podium = document.createElement("div");
+  podium.className = "og-podium";
+  const medals = ["\uD83E\uDD47", "\uD83E\uDD48", "\uD83E\uDD49"];
+
+  ranking.forEach((entry, i) => {
+    const row = document.createElement("div");
+    row.className = "og-podium-entry";
+    if (i === 0 && !entry.resigned) row.classList.add("winner");
+    if (entry.resigned) row.classList.add("resigned");
+
+    const left = document.createElement("span");
+    const rank = document.createElement("span");
+    rank.className = "og-podium-rank";
+    rank.textContent = i < 3 ? medals[i] : `#${i + 1}`;
+    left.appendChild(rank);
+    const nameText = entry.resigned ? `${entry.name} (resigned)` : entry.name;
+    left.appendChild(document.createTextNode(` ${nameText}`));
+    row.appendChild(left);
+
+    const coins = document.createElement("span");
+    coins.className = "og-podium-coins" + (entry.coins < 0 ? " negative" : "");
+    coins.textContent = `${entry.coins} coins`;
+    row.appendChild(coins);
+
+    podium.appendChild(row);
+  });
+  panel.appendChild(podium);
+}
+
+/* ═══════════════════════════════════════════
    ACTION PANEL
    ═══════════════════════════════════════════ */
 
@@ -1688,10 +2196,9 @@ function renderActionPanel(container) {
   const nonResignActions = allowed.filter(a => a !== "resign");
 
   if (onlineState.view.phase === "complete") {
-    const done = document.createElement("div");
-    done.className = "og-waiting-msg";
-    done.textContent = onlineState.view.status === "archived" ? "Game archived." : "Game complete!";
-    panel.appendChild(done);
+    renderGameOver(panel);
+    container.appendChild(panel);
+    return;
   } else if (nonResignActions.length === 0) {
     const waiting = document.createElement("div");
     waiting.className = "og-waiting-msg";
@@ -1707,6 +2214,7 @@ function renderActionPanel(container) {
   } else if (onlineState.view.phase === "race_turn") {
     renderRaceActions(panel);
   } else if (onlineState.view.phase === "downtime_submit") {
+    renderRaceResultsSummary(panel);
     renderDowntimeActions(panel);
   }
 
@@ -2384,9 +2892,20 @@ async function submitIntent(intent) {
   try {
     setRuntimeError("");
     onlineState.syncStatus = "syncing";
+    const prevRoll = onlineState.view?.publicState?.lastRoll;
     const requestId = nextRequestId();
     const response = await onlineState.api.submitAction(onlineState.view.version, intent);
     clearActionDrafts();
+    const newRoll = response.view?.publicState?.lastRoll;
+    const diceChanged = newRoll && JSON.stringify(newRoll) !== JSON.stringify(prevRoll);
+    if (diceChanged && intent.type !== "resign") {
+      commitView(response.view, requestId);
+      onlineState.syncStatus = "synced";
+      renderHeader();
+      renderTrack();
+      animateOnlineDice(newRoll, () => renderOnlineScreen());
+      return;
+    }
     commitView(response.view, requestId);
     onlineState.syncStatus = "synced";
     renderOnlineScreen();

@@ -148,6 +148,33 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
   border-radius: 3px;
   position: relative;
 }
+.track-cell.threshold-border {
+  border-right: 2px solid rgba(255,255,255,0.25);
+  border-radius: 3px 0 0 3px;
+}
+.payout-zones {
+  display: grid;
+  grid-template-columns: 30px repeat(10, 1fr) 30px;
+  gap: 2px;
+  min-width: 320px;
+  margin-bottom: 2px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.payout-zone {
+  text-align: center;
+  padding: 3px 0;
+  border-radius: 4px;
+  color: rgba(255,255,255,0.5);
+  background: rgba(255,255,255,0.04);
+  transition: all 0.3s ease;
+}
+.payout-zone.active {
+  color: #fff;
+  background: rgba(255,255,255,0.12);
+  text-shadow: 0 0 6px rgba(255,255,255,0.3);
+}
 
 .finish-cell {
   background: rgba(255,255,255,0.1);
@@ -644,6 +671,7 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
   </div>
 
   <div class="track-container">
+    <div class="payout-zones" id="payout-zones"></div>
     <div class="track" id="track"></div>
   </div>
 
@@ -1212,9 +1240,38 @@ function showScreen(id) {
   document.getElementById(id).classList.add('active');
 }
 
+function buildPayoutZones() {
+  var zones = document.getElementById('payout-zones');
+  zones.textContent = '';
+  var lead = getLeadingPosition();
+  // Spacer for lane label column
+  var spacer = document.createElement('div');
+  zones.appendChild(spacer);
+  // Zone definitions: [label, startCol, span]
+  var defs = [
+    ['5\u00D7', 0, 3],
+    ['3\u00D7', 3, 3],
+    ['2\u00D7', 6, 2],
+    ['1.5\u00D7', 8, 2]
+  ];
+  defs.forEach(function(d) {
+    var zone = document.createElement('div');
+    zone.className = 'payout-zone';
+    zone.style.gridColumn = 'span ' + d[2];
+    zone.textContent = d[0];
+    var zoneEnd = d[1] + d[2] - 1;
+    if (lead >= d[1] && lead <= zoneEnd) zone.classList.add('active');
+    zones.appendChild(zone);
+  });
+  // Spacer for finish column
+  var spacer2 = document.createElement('div');
+  zones.appendChild(spacer2);
+}
+
 function buildTrack() {
   var track = document.getElementById('track');
   track.textContent = '';
+  var thresholdCols = [2, 5, 7]; // right edge of 5x, 3x, 2x zones
   for (var row = 0; row < 6; row++) {
     var label = document.createElement('div');
     label.className = 'lane-label';
@@ -1234,6 +1291,9 @@ function buildTrack() {
     for (var col = 0; col < TRACK_LENGTH; col++) {
       var cell = document.createElement('div');
       cell.className = 'track-cell';
+      if (thresholdCols.indexOf(col) !== -1) {
+        cell.classList.add('threshold-border');
+      }
       cell.dataset.row = row;
       cell.dataset.col = col;
       track.appendChild(cell);
@@ -1244,6 +1304,7 @@ function buildTrack() {
     finish.textContent = '\u{1F3C1}';
     track.appendChild(finish);
   }
+  buildPayoutZones();
 }
 
 function renderSnails() {
@@ -1802,6 +1863,7 @@ function renderDice(dieIndices) {
 function renderAll() {
   renderHeader();
   renderSnails();
+  buildPayoutZones();
   renderBettingPanel();
   renderInfoPanel();
   renderProfitPanel();
@@ -1885,6 +1947,7 @@ function doRoll() {
     moveSnails(dice);
     state.lastRoll = dice;
     renderSnails();
+    buildPayoutZones();
 
     setTimeout(function() {
       var winner = checkWin();
