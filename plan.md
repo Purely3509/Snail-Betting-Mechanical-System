@@ -1,5 +1,21 @@
 # PRD: AI Bot Players for Snail Betting (Local Hotseat Mode)
 
+## Implementation Status
+
+**Phase 1: State & Setup — COMPLETE** (commit 2d7cf1e)
+- Bot constants added: `BOT_ARCHETYPES`, `BOT_NAMES`, `BOT_WEIGHTS`, `BOT_ARCHETYPE_META`
+- `initGame()` extended to accept `{ name, isBot, botArchetype }` config objects
+- Setup screen rebuilt: Human/Bot toggle per slot, archetype picker (Gambler/Mogul/Saboteur/Analyst), Quick Play button
+- Header shows archetype badge during bot turns
+- Player 1 always human; slots 2–4 toggleable
+- All changes in `index.html` only (no new files)
+
+**Phase 2: Bot Decision Engine — NOT STARTED**
+**Phase 3: Turn Flow Integration — NOT STARTED**
+**Phase 4: Polish & Feel — NOT STARTED**
+
+---
+
 ## 1. Overview
 
 Add AI-controlled bot players to local hotseat mode so a single human can play a full strategic game without needing other people present. Bots should feel like plausible opponents — not omniscient optimizers, but players with recognizable styles and the occasional bad read.
