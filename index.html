@@ -841,6 +841,33 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
   vertical-align: middle;
   margin-left: 4px;
 }
+/* Phase 3/4: Bot turn indicator */
+.bot-thinking {
+  text-align: center;
+  padding: 18px 0 12px;
+  font-size: 1.1rem;
+  color: var(--muted);
+  animation: botPulse 1.2s ease-in-out infinite;
+}
+@keyframes botPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+.bot-turn-overlay {
+  pointer-events: none;
+  opacity: 0.45;
+}
+.bot-action-toast {
+  text-align: center;
+  padding: 8px 12px;
+  margin: 8px auto;
+  max-width: 340px;
+  background: color-mix(in srgb, var(--accent) 15%, var(--bg));
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
 </style>
 </head>
 <body>
@@ -1669,6 +1696,18 @@ function renderBettingPanel() {
   var panel = document.getElementById('betting-panel');
   var player = state.players[state.currentPlayerIndex];
 
+  // Phase 3: If it's a bot's turn, don't render the human betting UI
+  if (player.isBot && state.turnPhase === 'bet') {
+    panel.style.display = '';
+    return; // executeBotTurn handles the panel content
+  }
+
+  // Clean up any bot overlay from previous turn
+  var botOverlay = document.getElementById('bot-turn-overlay');
+  if (botOverlay) botOverlay.remove();
+  // Restore any hidden children
+  Array.from(panel.children).forEach(function(ch) { ch.style.display = ''; });
+
   if (state.turnPhase === 'bet') {
     panel.style.display = '';
 
@@ -2137,6 +2176,19 @@ function renderActivityFeed() {
     actor.textContent = escapeHTML(entry.actor);
     item.appendChild(actor);
 
+    // Phase 4: Add archetype badge for bot actors in activity feed
+    var botPlayer = state.players.find(function(p) { return p.name === entry.actor && p.isBot; });
+    if (botPlayer) {
+      var meta = BOT_ARCHETYPE_META[botPlayer.botArchetype];
+      if (meta) {
+        var badge = document.createElement('span');
+        badge.className = 'bot-badge';
+        badge.style.cssText = 'background:' + meta.accent + ';color:#fff;font-size:0.6rem;padding:0 4px;margin-left:2px;';
+        badge.textContent = meta.icon;
+        item.appendChild(badge);
+      }
+    }
+
     item.appendChild(document.createTextNode(' ' + entry.action));
 
     if (entry.dice && entry.dice.length > 0) {
@@ -2334,10 +2386,449 @@ function logActivity(entry) {
   if (state.activityLog.length > MAX_ACTIVITY) state.activityLog.length = MAX_ACTIVITY;
 }
 
+// ═══════════════════════════════════
+//  PHASE 2: BOT DECISION ENGINE
+// ═══════════════════════════════════
+
+function getGamePhase() {
+  var lead = getLeadingPosition();
+  return Math.min(1, lead / TRACK_LENGTH);
+}
+
+function getRelativeCoinPosition(player) {
+  var total = 0;
+  state.players.forEach(function(p) { total += p.coins; });
+  var avg = total / state.players.length;
+  if (avg === 0) return 0;
+  return Math.max(-1, Math.min(1, (player.coins - avg) / Math.max(100, avg)));
+}
+
+function applyNoise(score) {
+  var noise = 1 + (Math.random() * 2 - 1) * BOT_NOISE;
+  return score * noise;
+}
+
+function estimatePlaceProbs(winProbs) {
+  var result = {};
+  SNAILS.forEach(function(s) {
+    var wp = (winProbs[s.color] || 0) / 100;
+    result[s.color] = { win: wp, second: wp * 0.8, third: wp * 0.5 };
+  });
+  return result;
+}
+
+function enumerateLegalActions(playerIndex) {
+  var player = state.players[playerIndex];
+  var actions = [];
+  var maxAffordable = player.coins - DEBT_FLOOR;
+  var wagerLevels = [MIN_WAGER];
+  var mid = Math.max(MIN_WAGER, Math.min(Math.floor(player.coins / 2 / WAGER_STEP) * WAGER_STEP, maxAffordable));
+  if (mid > MIN_WAGER) wagerLevels.push(mid);
+  var high = Math.max(MIN_WAGER, Math.min(60, Math.floor(maxAffordable / WAGER_STEP) * WAGER_STEP));
+  if (high > mid) wagerLevels.push(high);
+
+  SNAILS.forEach(function(s) {
+    if (state.eliminated[s.color]) return;
+    wagerLevels.forEach(function(w) {
+      if (w >= MIN_WAGER && canAfford(player, w)) {
+        actions.push({ type: 'bet', snailColor: s.color, wager: w });
+      }
+    });
+  });
+
+  SNAILS.forEach(function(s) {
+    if (state.eliminated[s.color]) return;
+    if ((state.snailShares[s.color] || 0) >= MAX_SHARES_PER_SNAIL) return;
+    if (!canAfford(player, SHARE_COST)) return;
+    actions.push({ type: 'share', snailColor: s.color });
+  });
+
+  var managed = getManagedSnails(player);
+  managed.forEach(function(color) {
+    if (state.drugged[color] || state.eliminated[color]) return;
+    if (!canAfford(player, DRUG_COST)) return;
+    actions.push({ type: 'drug', snailColor: color });
+  });
+
+  if (canAfford(player, SHARE_COST)) {
+    SHOPS.forEach(function(shopKey) {
+      actions.push({ type: 'shopShare', shopKey: shopKey });
+    });
+  }
+
+  state.marketListings.forEach(function(listing) {
+    if (listing.sellerId === playerIndex) return;
+    if (!canAfford(player, listing.price)) return;
+    if (listing.assetType === 'snail' && (state.snailShares[listing.assetKey] || 0) >= MAX_SHARES_PER_SNAIL) return;
+    actions.push({ type: 'buyListing', listingId: listing.id, listing: listing });
+  });
+
+  actions.push({ type: 'skip' });
+  return actions;
+}
+
+function evaluateAction(action, playerIndex) {
+  var player = state.players[playerIndex];
+  var weights = BOT_WEIGHTS[player.botArchetype] || BOT_WEIGHTS.analyst;
+  var winProbs = simulateWinProbabilities();
+  var phase = getGamePhase();
+  var coinPos = getRelativeCoinPosition(player);
+  var multiplier = calculateMultiplier();
+
+  if (action.type === 'bet') {
+    var wp = (winProbs[action.snailColor] || 0) / 100;
+    var ev = (wp * action.wager * multiplier) - ((1 - wp) * action.wager);
+    var riskFactor = action.wager / Math.max(1, player.coins);
+    var longshot = (wp < 0.2) ? (1 - wp) : 0;
+    var desperationScale = coinPos < -0.3 ? 1.5 : 1.0;
+    return applyNoise(ev * weights.betEV + riskFactor * weights.risk * desperationScale + longshot * multiplier * weights.longshot * 5);
+  }
+
+  if (action.type === 'share') {
+    var placeProbs = estimatePlaceProbs(winProbs);
+    var pp = placeProbs[action.snailColor];
+    var expectedPayout = pp.win * SHARE_PAYOUTS[1] + pp.second * SHARE_PAYOUTS[2] + pp.third * SHARE_PAYOUTS[3];
+    var currentShares = player.shares[action.snailColor] || 0;
+    var wouldBecome = true;
+    state.players.forEach(function(p, i) {
+      if (i === playerIndex) return;
+      if ((p.shares[action.snailColor] || 0) >= currentShares + 1) wouldBecome = false;
+    });
+    var managerBonus = wouldBecome ? weights.control * 15 : 0;
+    var phaseBonus = (1 - phase) * 0.5;
+    return applyNoise((expectedPayout - SHARE_COST) * weights.shareEV + managerBonus + phaseBonus * 5);
+  }
+
+  if (action.type === 'drug') {
+    var snail = state.snails.find(function(s) { return s.color === action.snailColor; });
+    var stressRisk = snail.stress / STRESS_MAX;
+    var colombiaIncome = (player.shopShares.colombia || 0) * DRUG_SHOP_PAYOUT;
+    var posGain = (TRACK_LENGTH - snail.position) > 3 ? 5 : 2;
+    var drugScore = (colombiaIncome + posGain - DRUG_COST) * weights.drugEV - stressRisk * weights.stressAversion * 15;
+    if (stressRisk > 0.6) drugScore += weights.drugEV * 10 * (1 - weights.stressAversion);
+    return applyNoise(drugScore);
+  }
+
+  if (action.type === 'shopShare') {
+    var shopValues = { colombia: 3 + state.players.length * 1.5, massageParlor: 2 + phase * 3, gym: 2 + (1 - phase) * 2 };
+    var val = (shopValues[action.shopKey] || 2) - SHARE_COST;
+    var sscore = val * weights.shareEV * 0.5;
+    if (player.botArchetype === 'mogul') sscore *= 1.5;
+    return applyNoise(sscore);
+  }
+
+  if (action.type === 'buyListing') {
+    var listing = action.listing;
+    var internalValue = 0;
+    if (listing.assetType === 'snail') {
+      var placeProbs2 = estimatePlaceProbs(winProbs);
+      var pp2 = placeProbs2[listing.assetKey];
+      internalValue = pp2.win * SHARE_PAYOUTS[1] + pp2.second * SHARE_PAYOUTS[2] + pp2.third * SHARE_PAYOUTS[3];
+    } else {
+      internalValue = 8;
+    }
+    if (listing.price < internalValue) return applyNoise((internalValue - listing.price) * weights.shareEV);
+    return applyNoise(-5);
+  }
+
+  if (action.type === 'skip') {
+    var conservatism = phase * 0.5 + Math.max(0, coinPos) * 0.5;
+    return applyNoise(weights.passivity * (1 + conservatism) * 3);
+  }
+
+  return 0;
+}
+
+function pickWeightedTop(scoredActions) {
+  if (scoredActions.length === 0) return null;
+  scoredActions.sort(function(a, b) { return b.score - a.score; });
+  var candidates = scoredActions.slice(0, Math.min(3, scoredActions.length));
+  var minScore = Math.min.apply(null, candidates.map(function(c) { return c.score; }));
+  var shifted = candidates.map(function(c) { return { action: c.action, weight: c.score - minScore + 1 }; });
+  var totalWeight = 0;
+  shifted.forEach(function(c) { totalWeight += c.weight; });
+  var roll = Math.random() * totalWeight;
+  var cumulative = 0;
+  for (var i = 0; i < shifted.length; i++) {
+    cumulative += shifted[i].weight;
+    if (roll <= cumulative) return shifted[i].action;
+  }
+  return shifted[shifted.length - 1].action;
+}
+
+function executeBotAction(playerIndex, action) {
+  var player = state.players[playerIndex];
+  var actionDesc = '';
+
+  if (action.type === 'bet') {
+    selectedSnail = action.snailColor;
+    wager = action.wager;
+    if (!placeBet(playerIndex, action.snailColor, action.wager)) { action.type = 'skip'; }
+    else { actionDesc = 'bet $' + action.wager + ' on ' + capitalize(action.snailColor) + ' @' + calculateMultiplier() + 'x'; }
+  }
+  if (action.type === 'share') {
+    if (!buyShare(playerIndex, action.snailColor)) { action.type = 'skip'; }
+    else { actionDesc = 'bought ' + capitalize(action.snailColor) + ' share'; }
+  }
+  if (action.type === 'drug') {
+    if (!drugSnail(playerIndex, action.snailColor)) { action.type = 'skip'; }
+    else { actionDesc = 'stimulated ' + capitalize(action.snailColor); }
+  }
+  if (action.type === 'shopShare') {
+    if (!buyShopShare(playerIndex, action.shopKey)) { action.type = 'skip'; }
+    else { actionDesc = 'bought ' + SHOP_NAMES[action.shopKey] + ' share'; }
+  }
+  if (action.type === 'buyListing') {
+    if (!buyListing(playerIndex, action.listingId)) { action.type = 'skip'; }
+    else {
+      var listing = action.listing;
+      var assetName = listing.assetType === 'snail' ? capitalize(listing.assetKey) + ' share' : SHOP_NAMES[listing.assetKey] + ' share';
+      actionDesc = 'bought ' + assetName + ' from market ($' + listing.price + ')';
+    }
+  }
+  if (action.type === 'skip') { actionDesc = 'skipped'; }
+
+  logActivity({ actor: player.name, action: actionDesc });
+  return actionDesc;
+}
+
+function executeBotTurn(playerIndex) {
+  var player = state.players[playerIndex];
+  if (!player.isBot) return;
+
+  // Show thinking indicator using a separate overlay div (don't destroy panel children)
+  var panel = document.getElementById('betting-panel');
+  panel.style.display = '';
+  // Hide existing panel children but keep them in DOM
+  Array.from(panel.children).forEach(function(ch) { ch.style.display = 'none'; });
+  // Add overlay
+  var overlay = document.createElement('div');
+  overlay.id = 'bot-turn-overlay';
+  var thinkDiv = document.createElement('div');
+  thinkDiv.className = 'bot-thinking';
+  thinkDiv.textContent = escapeHTML(player.name) + ' is thinking\u2026';
+  overlay.appendChild(thinkDiv);
+  panel.appendChild(overlay);
+
+  setTimeout(function() {
+    var actions = enumerateLegalActions(playerIndex);
+    var scored = actions.map(function(a) {
+      return { action: a, score: evaluateAction(a, playerIndex) };
+    });
+    var bestAction = pickWeightedTop(scored);
+    if (!bestAction) bestAction = { type: 'skip' };
+
+    var desc = executeBotAction(playerIndex, bestAction);
+
+    // Update overlay to show what the bot chose
+    var existingOverlay = document.getElementById('bot-turn-overlay');
+    if (existingOverlay) {
+      existingOverlay.textContent = '';
+      var toast = document.createElement('div');
+      toast.className = 'bot-action-toast';
+      toast.textContent = escapeHTML(player.name) + ': ' + desc;
+      existingOverlay.appendChild(toast);
+    }
+
+    state.turnPhase = 'rolling';
+    renderHeader();
+    renderActivityFeed();
+
+    setTimeout(function() {
+      // Clean up overlay before rolling
+      var ov = document.getElementById('bot-turn-overlay');
+      if (ov) ov.remove();
+      // Restore panel children visibility
+      Array.from(panel.children).forEach(function(ch) { ch.style.display = ''; });
+      doRoll();
+    }, BOT_ROLL_DELAY);
+  }, BOT_THINK_DELAY);
+}
+
+// ── Bot Downtime Logic ──
+
+function enumerateDowntimeActions(playerIndex) {
+  var player = state.players[playerIndex];
+  var actions = [];
+
+  var managed = getManagedSnails(player);
+  managed.forEach(function(color) {
+    var snail = state.snails.find(function(sn) { return sn.color === color; });
+    if (snail.stress > 0 && canAfford(player, MASSAGE_COST)) {
+      actions.push({ type: 'massage', snailColor: color });
+    }
+  });
+
+  SNAILS.forEach(function(s) {
+    if ((player.shares[s.color] || 0) > 0 && !state.eliminated[s.color] && canAfford(player, TRAIN_COST)) {
+      actions.push({ type: 'train', snailColor: s.color });
+    }
+  });
+
+  if (canAfford(player, SHARE_COST)) {
+    SHOPS.forEach(function(shopKey) {
+      actions.push({ type: 'buyShop', shopKey: shopKey });
+    });
+  }
+
+  SNAILS.forEach(function(s) {
+    if ((player.shares[s.color] || 0) > 0) {
+      actions.push({ type: 'sell', assetType: 'snail', assetKey: s.color });
+    }
+  });
+  SHOPS.forEach(function(shopKey) {
+    if ((player.shopShares[shopKey] || 0) > 0) {
+      actions.push({ type: 'sell', assetType: 'shop', assetKey: shopKey });
+    }
+  });
+
+  state.marketListings.forEach(function(listing) {
+    if (listing.sellerId === playerIndex) return;
+    if (!canAfford(player, listing.price)) return;
+    actions.push({ type: 'buyMarket', listingId: listing.id, listing: listing });
+  });
+
+  actions.push({ type: 'pass' });
+  return actions;
+}
+
+function evaluateDowntimeAction(action, playerIndex) {
+  var player = state.players[playerIndex];
+  var weights = BOT_WEIGHTS[player.botArchetype] || BOT_WEIGHTS.analyst;
+  var winProbs = simulateWinProbabilities();
+
+  if (action.type === 'massage') {
+    var snail = state.snails.find(function(s) { return s.color === action.snailColor; });
+    var stressUrgency = snail.stress / STRESS_MAX;
+    var wp = (winProbs[action.snailColor] || 0) / 100;
+    return applyNoise((stressUrgency * 15 + wp * 10 - MASSAGE_COST) * weights.stressAversion);
+  }
+
+  if (action.type === 'train') {
+    var snail2 = state.snails.find(function(s) { return s.color === action.snailColor; });
+    var stressRisk = snail2.stress / STRESS_MAX;
+    var wp2 = (winProbs[action.snailColor] || 0) / 100;
+    var expectedBonusValue = (1/6) * wp2 * 20;
+    return applyNoise((expectedBonusValue - TRAIN_COST) - stressRisk * weights.stressAversion * 10 + weights.risk * 3);
+  }
+
+  if (action.type === 'buyShop') {
+    var shopValues = { colombia: 4 + state.players.length, massageParlor: 5, gym: 3 };
+    var val = (shopValues[action.shopKey] || 3) - SHARE_COST;
+    var sscore = val * weights.shareEV;
+    if (player.botArchetype === 'mogul') sscore *= 1.8;
+    return applyNoise(sscore);
+  }
+
+  if (action.type === 'sell') {
+    var sellValue = 0;
+    if (action.assetType === 'snail') {
+      var wp3 = (winProbs[action.assetKey] || 0) / 100;
+      var snail3 = state.snails.find(function(s) { return s.color === action.assetKey; });
+      if (state.eliminated[action.assetKey]) sellValue = 5;
+      else if (snail3.stress >= 7) sellValue = 3 * (1 - weights.stressAversion * 0.3);
+      else if (wp3 < 0.1) sellValue = 1;
+      else sellValue = -5;
+    } else {
+      sellValue = -3;
+    }
+    return applyNoise(sellValue);
+  }
+
+  if (action.type === 'buyMarket') {
+    var listing = action.listing;
+    var internalValue = 0;
+    if (listing.assetType === 'snail') {
+      var wp4 = (winProbs[listing.assetKey] || 0) / 100;
+      internalValue = wp4 * SHARE_PAYOUTS[1] * 0.5 + 5;
+    } else {
+      internalValue = 6;
+    }
+    return applyNoise((internalValue - listing.price) * weights.shareEV);
+  }
+
+  if (action.type === 'pass') {
+    return applyNoise(weights.passivity * 2);
+  }
+
+  return 0;
+}
+
+function executeBotDowntime(playerIndex) {
+  var player = state.players[playerIndex];
+  if (!player.isBot) return;
+
+  var actions = enumerateDowntimeActions(playerIndex);
+  var scored = actions.map(function(a) {
+    return { action: a, score: evaluateDowntimeAction(a, playerIndex) };
+  });
+  var bestAction = pickWeightedTop(scored);
+  if (!bestAction) bestAction = { type: 'pass' };
+
+  var summary = '';
+
+  if (bestAction.type === 'massage') {
+    if (massageSnail(playerIndex, bestAction.snailColor)) {
+      summary = 'Massaged ' + capitalize(bestAction.snailColor) + ' (-$' + MASSAGE_COST + ', -' + MASSAGE_STRESS_RELIEF + ' stress)';
+    } else { summary = 'Passed'; }
+  } else if (bestAction.type === 'train') {
+    var result = trainSnail(playerIndex, bestAction.snailColor);
+    if (result.success) {
+      summary = 'Trained ' + capitalize(bestAction.snailColor) + ' (-$' + TRAIN_COST + '). ';
+      summary += result.trained ? 'Success! +1 movement.' : 'Failed (wrong color).';
+      if (result.broken) summary += ' Snail broke down!';
+    } else { summary = 'Passed'; }
+  } else if (bestAction.type === 'buyShop') {
+    if (buyShopShare(playerIndex, bestAction.shopKey)) {
+      summary = 'Bought ' + SHOP_NAMES[bestAction.shopKey] + ' share (-$' + SHARE_COST + ')';
+    } else { summary = 'Passed'; }
+  } else if (bestAction.type === 'sell') {
+    var priceMultipliers = { gambler: 1.5, mogul: 0.8, saboteur: 1.2, analyst: 1.0 };
+    var basePriceRaw = SHARE_COST;
+    if (bestAction.assetType === 'snail') {
+      var wp5 = (simulateWinProbabilities()[bestAction.assetKey] || 0) / 100;
+      basePriceRaw = Math.max(1, Math.round(wp5 * SHARE_PAYOUTS[1] * 0.5));
+    }
+    var sellPrice = Math.max(1, Math.round(basePriceRaw * (priceMultipliers[player.botArchetype] || 1.0)));
+    if (listShareForSale(playerIndex, bestAction.assetType, bestAction.assetKey, sellPrice)) {
+      var assetName2 = bestAction.assetType === 'snail'
+        ? capitalize(bestAction.assetKey) + ' snail share'
+        : SHOP_NAMES[bestAction.assetKey] + ' shop share';
+      summary = 'Listed ' + assetName2 + ' for $' + sellPrice;
+    } else { summary = 'Passed'; }
+  } else if (bestAction.type === 'buyMarket') {
+    if (buyListing(playerIndex, bestAction.listingId)) {
+      var listing2 = bestAction.listing;
+      var aName = listing2.assetType === 'snail' ? capitalize(listing2.assetKey) + ' share' : SHOP_NAMES[listing2.assetKey] + ' share';
+      summary = 'Bought ' + aName + ' from market ($' + listing2.price + ')';
+    } else { summary = 'Passed'; }
+  } else {
+    summary = 'Passed';
+  }
+
+  state.downtimeActions[playerIndex] = { type: bestAction.type, summary: summary };
+  state.downtimeSubmitted[playerIndex] = true;
+}
+
+// ═══════════════════════════════════
+//  PHASE 3: TURN FLOW INTEGRATION
+// ═══════════════════════════════════
+
+function isCurrentPlayerBot() {
+  return state && state.players[state.currentPlayerIndex] && state.players[state.currentPlayerIndex].isBot;
+}
+
+function checkAndRunBotTurn() {
+  if (!state || state.gameOver) return;
+  if (isCurrentPlayerBot()) {
+    executeBotTurn(state.currentPlayerIndex);
+  }
+}
+
 // ── Actions ──
 
 function doPlaceBet() {
-  if (animating || !selectedSnail) return;
+  if (animating || !selectedSnail || isCurrentPlayerBot()) return;
   var ok = placeBet(state.currentPlayerIndex, selectedSnail, wager);
   if (!ok) return;
   logActivity({ actor: state.players[state.currentPlayerIndex].name, action: 'bet $' + wager + ' on ' + capitalize(selectedSnail) + ' @' + calculateMultiplier() + 'x' });
@@ -2347,7 +2838,7 @@ function doPlaceBet() {
 }
 
 function doBuyShare() {
-  if (animating || !selectedSnail) return;
+  if (animating || !selectedSnail || isCurrentPlayerBot()) return;
   var ok = buyShare(state.currentPlayerIndex, selectedSnail);
   if (!ok) return;
   logActivity({ actor: state.players[state.currentPlayerIndex].name, action: 'bought ' + capitalize(selectedSnail) + ' share' });
@@ -2357,7 +2848,7 @@ function doBuyShare() {
 }
 
 function doDrugSnail() {
-  if (animating || !selectedSnail) return;
+  if (animating || !selectedSnail || isCurrentPlayerBot()) return;
   var ok = drugSnail(state.currentPlayerIndex, selectedSnail);
   if (!ok) return;
   logActivity({ actor: state.players[state.currentPlayerIndex].name, action: 'stimulated ' + capitalize(selectedSnail) });
@@ -2367,7 +2858,7 @@ function doDrugSnail() {
 }
 
 function doSkipAndRoll() {
-  if (animating) return;
+  if (animating || isCurrentPlayerBot()) return;
   logActivity({ actor: state.players[state.currentPlayerIndex].name, action: 'skipped' });
   state.turnPhase = 'rolling';
   renderBettingPanel();
@@ -2413,6 +2904,8 @@ function doRoll() {
       } else {
         nextTurn();
         renderAll();
+        // Phase 3: auto-trigger bot turn if next player is a bot
+        checkAndRunBotTurn();
       }
     }, 600);
   });
@@ -2619,6 +3112,22 @@ function showDowntimeScreen() {
     state.downtimeSubmitted[i] = false;
   });
 
+  // Phase 3: Auto-submit bot downtime actions with staggered delays
+  var botDelay = 0;
+  state.players.forEach(function(p, i) {
+    if (p.isBot) {
+      botDelay += 400;
+      (function(idx, delay) {
+        setTimeout(function() {
+          executeBotDowntime(idx);
+          renderDowntimePanels();
+          renderDowntimeMarket();
+          updateStartNextRaceBtn();
+        }, delay);
+      })(i, botDelay);
+    }
+  });
+
   renderDowntimePanels();
   renderDowntimeMarket();
   updateStartNextRaceBtn();
@@ -2635,6 +3144,18 @@ function renderDowntimePanels() {
 
     var header = document.createElement('h3');
     header.textContent = escapeHTML(player.name) + ' ($' + player.coins + ')';
+    // Phase 4: Add bot badge to downtime panel headers
+    if (player.isBot) {
+      var meta = BOT_ARCHETYPE_META[player.botArchetype];
+      if (meta) {
+        var badge = document.createElement('span');
+        badge.className = 'bot-badge';
+        badge.style.cssText = 'background:' + meta.accent + ';color:#fff;';
+        badge.textContent = meta.icon + ' ' + capitalize(player.botArchetype);
+        header.appendChild(document.createTextNode(' '));
+        header.appendChild(badge);
+      }
+    }
     panel.appendChild(header);
 
     if (state.downtimeSubmitted[playerIdx]) {
@@ -2990,6 +3511,17 @@ function showGameOver(finalRanking) {
     rankSpan.textContent = i < 3 ? ranks[i] : '#' + (i + 1);
     left.appendChild(rankSpan);
     left.appendChild(document.createTextNode(' ' + escapeHTML(p.name)));
+    // Phase 4: Show bot archetype badge on podium
+    if (p.isBot) {
+      var meta = BOT_ARCHETYPE_META[p.botArchetype];
+      if (meta) {
+        var badge = document.createElement('span');
+        badge.className = 'bot-badge';
+        badge.style.cssText = 'background:' + meta.accent + ';color:#fff;';
+        badge.textContent = meta.icon + ' ' + capitalize(p.botArchetype);
+        left.appendChild(badge);
+      }
+    }
     entry.appendChild(left);
 
     var coins = document.createElement('span');
@@ -3003,8 +3535,10 @@ function showGameOver(finalRanking) {
 
   var hsMsg = document.getElementById('high-score-msg');
   hsMsg.textContent = '';
-  if (state.players.length === 1) {
-    var score = state.players[0].coins;
+  // Phase 4: High score works for solo human (even with bot opponents)
+  var humanPlayers = state.players.filter(function(p) { return !p.isBot; });
+  if (humanPlayers.length === 1) {
+    var score = humanPlayers[0].coins;
     var prev = localStorage.getItem('snailBettingHighScore');
     var highScore = prev ? parseInt(prev, 10) : 0;
     if (score > highScore) {
@@ -3244,6 +3778,7 @@ document.getElementById('start-btn').addEventListener('click', function() {
   buildTrack();
   showScreen('game-screen');
   renderAll();
+  checkAndRunBotTurn();
 });
 
 // Quick Play: 1 human + 3 random bots
@@ -3267,6 +3802,7 @@ document.getElementById('quick-play-btn').addEventListener('click', function() {
   buildTrack();
   showScreen('game-screen');
   renderAll();
+  checkAndRunBotTurn();
 });
 
 document.getElementById('play-again-btn').addEventListener('click', function() {
@@ -3285,6 +3821,7 @@ document.getElementById('start-next-race-btn').addEventListener('click', functio
   showScreen('game-screen');
   renderDice(null);
   renderAll();
+  checkAndRunBotTurn();
 });
 
 // ── Profit panel toggle ──
