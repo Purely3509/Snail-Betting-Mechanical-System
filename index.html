@@ -737,6 +737,110 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
   opacity: 0.5;
   cursor: default;
 }
+
+/* ── Bot Setup ── */
+.player-slot {
+  background: var(--bg);
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+.player-slot-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.player-slot-header .slot-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  min-width: 24px;
+}
+.bot-toggle {
+  display: flex;
+  border: 2px solid var(--accent);
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.bot-toggle button {
+  padding: 4px 12px;
+  font-size: 0.85rem;
+  border: none;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+  min-height: 32px;
+}
+.bot-toggle button.selected {
+  background: var(--accent);
+}
+.archetype-picker {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.archetype-btn {
+  flex: 1;
+  min-width: 70px;
+  padding: 8px 6px;
+  font-size: 0.78rem;
+  border: 2px solid #444;
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+  text-align: center;
+  min-height: 44px;
+  line-height: 1.2;
+}
+.archetype-btn.selected {
+  border-color: var(--archetype-accent, var(--accent));
+  background: color-mix(in srgb, var(--archetype-accent, var(--accent)) 20%, var(--bg));
+}
+.archetype-btn .arch-icon {
+  display: block;
+  font-size: 1.1rem;
+  margin-bottom: 2px;
+}
+.archetype-btn .arch-label {
+  display: block;
+  font-weight: 600;
+}
+.archetype-desc {
+  font-size: 0.75rem;
+  color: #999;
+  margin-top: 4px;
+  font-style: italic;
+}
+.quick-play-btn {
+  width: 100%;
+  padding: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  border: 2px dashed var(--accent);
+  background: transparent;
+  color: var(--accent);
+  border-radius: 8px;
+  cursor: pointer;
+  min-height: 44px;
+  margin-bottom: 10px;
+}
+.quick-play-btn:active {
+  background: var(--accent);
+  color: var(--bg);
+}
+.bot-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  vertical-align: middle;
+  margin-left: 4px;
+}
 </style>
 </head>
 <body>
@@ -744,6 +848,7 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
 <!-- SETUP SCREEN -->
 <div id="setup-screen" class="active">
   <h1>Snail Betting</h1>
+  <button class="quick-play-btn" id="quick-play-btn">Quick Play (vs 3 Bots)</button>
   <div class="setup-section">
     <label>Number of Players</label>
     <div class="player-count-btns" id="player-count-btns">
@@ -752,11 +857,8 @@ h1 { font-size: 1.6rem; margin-bottom: 10px; }
       <button data-count="3">3</button>
       <button data-count="4">4</button>
     </div>
-    <label>Player Names</label>
-    <div class="name-inputs" id="name-inputs">
-      <input type="text" placeholder="Player 1" maxlength="12">
-      <input type="text" placeholder="Player 2" maxlength="12">
-    </div>
+    <label>Players</label>
+    <div id="player-slots"></div>
   </div>
   <button class="btn-primary" id="start-btn">Start Race!</button>
 </div>
@@ -909,6 +1011,30 @@ var GYM_SHOP_PAYOUT = 5;
 var SHOPS = ['colombia', 'massageParlor', 'gym'];
 var SHOP_NAMES = { colombia: 'Colombia', massageParlor: 'Massage Parlor', gym: 'Gym' };
 
+// ── Bot constants ──
+var BOT_THINK_DELAY = 800;
+var BOT_ROLL_DELAY = 400;
+var BOT_NOISE = 0.12;
+var BOT_ARCHETYPES = ['gambler', 'mogul', 'saboteur', 'analyst'];
+var BOT_NAMES = {
+  gambler:  ['Lucky', 'Dice', 'Jackpot', 'Bluff'],
+  mogul:    ['Baron', 'Tycoon', 'Vault', 'Ledger'],
+  saboteur: ['Chaos', 'Gremlin', 'Hex', 'Jinx'],
+  analyst:  ['Calc', 'Sigma', 'Logic', 'Bayes']
+};
+var BOT_ARCHETYPE_META = {
+  gambler:  { accent: '#D4A017', icon: '\uD83C\uDFB2', desc: 'Loves longshot bets and big risks' },
+  mogul:    { accent: '#2E7D32', icon: '\uD83D\uDCB0', desc: 'Builds a portfolio of shares and dividends' },
+  saboteur: { accent: '#C62828', icon: '\uD83D\uDD25', desc: 'Drugs snails and thrives on chaos' },
+  analyst:  { accent: '#1565C0', icon: '\uD83D\uDCCA', desc: 'Calculates odds and plays the percentages' }
+};
+var BOT_WEIGHTS = {
+  gambler:  { betEV: 1.0, risk: 0.5,  longshot: 0.8, shareEV: 0.3, control: 0.2, drugEV: 0.3, stressAversion: 0.3, passivity: 0.1 },
+  mogul:    { betEV: 0.6, risk: -0.3, longshot: 0.1, shareEV: 1.0, control: 0.9, drugEV: 0.8, stressAversion: 0.7, passivity: 0.3 },
+  saboteur: { betEV: 0.7, risk: 0.3,  longshot: 0.3, shareEV: 0.5, control: 1.0, drugEV: 1.0, stressAversion: 0.1, passivity: 0.1 },
+  analyst:  { betEV: 1.0, risk: -0.4, longshot: 0.0, shareEV: 0.8, control: 0.5, drugEV: 0.5, stressAversion: 0.9, passivity: 0.4 }
+};
+
 function escapeHTML(str) {
   var div = document.createElement('div');
   div.textContent = str;
@@ -924,12 +1050,18 @@ var profitPanelOpen = false;
 
 // ── State management ──
 
-function initGame(playerNames) {
+function initGame(playerConfigs) {
+  // playerConfigs: array of { name, isBot?, botArchetype? }
   state = {
-    players: playerNames.map(function(name) {
+    players: playerConfigs.map(function(cfg) {
       var shopShares = {};
       SHOPS.forEach(function(s) { shopShares[s] = 0; });
-      return { name: name, coins: STARTING_COINS, bets: [], shares: {}, shopShares: shopShares };
+      var p = { name: cfg.name || cfg, coins: STARTING_COINS, bets: [], shares: {}, shopShares: shopShares };
+      if (cfg.isBot) {
+        p.isBot = true;
+        p.botArchetype = cfg.botArchetype;
+      }
+      return p;
     }),
     snails: SNAILS.map(function(s) {
       return { color: s.color, label: s.label, css: s.css, position: 0, stress: 0 };
@@ -1509,7 +1641,18 @@ function renderHeader() {
   document.getElementById('round-info').textContent = 'Race ' + state.raceNumber + '/' + TOTAL_RACES + ' | Turn ' + state.round;
   var coinText = p.coins + ' coins';
   var playerInfo = document.getElementById('player-info');
-  playerInfo.textContent = escapeHTML(p.name) + ' (' + coinText + ')';
+  playerInfo.textContent = '';
+  var nameSpan = document.createElement('span');
+  nameSpan.textContent = escapeHTML(p.name) + ' (' + coinText + ')';
+  playerInfo.appendChild(nameSpan);
+  if (p.isBot) {
+    var meta = BOT_ARCHETYPE_META[p.botArchetype];
+    var badge = document.createElement('span');
+    badge.className = 'bot-badge';
+    badge.style.cssText = 'background:' + meta.accent + ';color:#fff;';
+    badge.textContent = meta.icon + ' ' + p.botArchetype.charAt(0).toUpperCase() + p.botArchetype.slice(1);
+    playerInfo.appendChild(badge);
+  }
   if (p.coins < 0) {
     playerInfo.classList.add('negative-coins');
   } else {
@@ -2944,28 +3087,183 @@ document.querySelectorAll('#player-count-btns button').forEach(function(btn) {
       b.classList.remove('selected');
     });
     btn.classList.add('selected');
-    updateNameInputs();
+    updatePlayerSlots();
   });
 });
 
-function updateNameInputs() {
-  var container = document.getElementById('name-inputs');
+// Track per-slot bot config: { isBot, archetype } indexed by slot
+var slotConfigs = [];
+
+function updatePlayerSlots() {
+  var container = document.getElementById('player-slots');
   container.textContent = '';
+  slotConfigs = [];
   for (var i = 0; i < playerCount; i++) {
-    var input = document.createElement('input');
-    input.type = 'text';
-    input.placeholder = 'Player ' + (i + 1);
-    input.maxLength = 12;
-    container.appendChild(input);
+    slotConfigs.push({ isBot: false, archetype: null });
+    var slot = document.createElement('div');
+    slot.className = 'player-slot';
+    slot.dataset.slot = i;
+
+    var header = document.createElement('div');
+    header.className = 'player-slot-header';
+
+    var label = document.createElement('span');
+    label.className = 'slot-label';
+    label.textContent = (i + 1);
+    header.appendChild(label);
+
+    if (i === 0) {
+      // Player 1 is always human
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = 'Player 1';
+      input.maxLength = 12;
+      input.className = 'slot-name-input';
+      input.style.cssText = 'flex:1;padding:8px 12px;font-size:1rem;border:1px solid #333;border-radius:6px;background:var(--bg);color:var(--text);min-height:36px;';
+      header.appendChild(input);
+    } else {
+      // Toggle: Human / Bot
+      var toggle = document.createElement('div');
+      toggle.className = 'bot-toggle';
+      var btnHuman = document.createElement('button');
+      btnHuman.textContent = 'Human';
+      btnHuman.className = 'selected';
+      btnHuman.dataset.mode = 'human';
+      var btnBot = document.createElement('button');
+      btnBot.textContent = 'Bot';
+      btnBot.dataset.mode = 'bot';
+      toggle.appendChild(btnHuman);
+      toggle.appendChild(btnBot);
+      header.appendChild(toggle);
+
+      // Name input (shown for human, hidden for bot)
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = 'Player ' + (i + 1);
+      input.maxLength = 12;
+      input.className = 'slot-name-input';
+      input.style.cssText = 'flex:1;padding:8px 12px;font-size:1rem;border:1px solid #333;border-radius:6px;background:var(--bg);color:var(--text);min-height:36px;';
+      header.appendChild(input);
+
+      // Wire toggle
+      (function(slotIndex, toggleEl, inputEl, slotEl) {
+        toggleEl.addEventListener('click', function(e) {
+          if (!e.target.dataset.mode) return;
+          toggleEl.querySelectorAll('button').forEach(function(b) { b.classList.remove('selected'); });
+          e.target.classList.add('selected');
+          var isBot = e.target.dataset.mode === 'bot';
+          slotConfigs[slotIndex].isBot = isBot;
+          inputEl.style.display = isBot ? 'none' : '';
+          // Show/hide archetype picker
+          var picker = slotEl.querySelector('.archetype-picker');
+          var desc = slotEl.querySelector('.archetype-desc');
+          if (isBot) {
+            if (!picker) buildArchetypePicker(slotEl, slotIndex);
+            else { picker.style.display = ''; if (desc) desc.style.display = ''; }
+            // Default to first archetype if none selected
+            if (!slotConfigs[slotIndex].archetype) {
+              slotConfigs[slotIndex].archetype = BOT_ARCHETYPES[0];
+              var firstBtn = slotEl.querySelector('.archetype-btn');
+              if (firstBtn) firstBtn.classList.add('selected');
+            }
+          } else {
+            if (picker) { picker.style.display = 'none'; if (desc) desc.style.display = 'none'; }
+            slotConfigs[slotIndex].archetype = null;
+          }
+        });
+      })(i, toggle, input, slot);
+    }
+
+    slot.appendChild(header);
+    container.appendChild(slot);
   }
 }
 
-document.getElementById('start-btn').addEventListener('click', function() {
-  var inputs = document.querySelectorAll('#name-inputs input');
-  var names = Array.from(inputs).map(function(inp, i) {
-    return inp.value.trim() || ('Player ' + (i + 1));
+function buildArchetypePicker(slotEl, slotIndex) {
+  var picker = document.createElement('div');
+  picker.className = 'archetype-picker';
+  var desc = document.createElement('div');
+  desc.className = 'archetype-desc';
+
+  BOT_ARCHETYPES.forEach(function(arch, idx) {
+    var meta = BOT_ARCHETYPE_META[arch];
+    var btn = document.createElement('button');
+    btn.className = 'archetype-btn' + (idx === 0 ? ' selected' : '');
+    btn.style.setProperty('--archetype-accent', meta.accent);
+    btn.dataset.archetype = arch;
+    btn.innerHTML = '<span class="arch-icon">' + meta.icon + '</span><span class="arch-label">' + arch.charAt(0).toUpperCase() + arch.slice(1) + '</span>';
+    picker.appendChild(btn);
   });
-  initGame(names);
+
+  // Default description
+  desc.textContent = BOT_ARCHETYPE_META[BOT_ARCHETYPES[0]].desc;
+  slotConfigs[slotIndex].archetype = BOT_ARCHETYPES[0];
+
+  picker.addEventListener('click', function(e) {
+    var btn = e.target.closest('.archetype-btn');
+    if (!btn) return;
+    picker.querySelectorAll('.archetype-btn').forEach(function(b) { b.classList.remove('selected'); });
+    btn.classList.add('selected');
+    var arch = btn.dataset.archetype;
+    slotConfigs[slotIndex].archetype = arch;
+    desc.textContent = BOT_ARCHETYPE_META[arch].desc;
+  });
+
+  slotEl.appendChild(picker);
+  slotEl.appendChild(desc);
+}
+
+function getPlayerConfigs() {
+  var configs = [];
+  var usedBotNames = {};
+  for (var i = 0; i < playerCount; i++) {
+    var cfg = slotConfigs[i];
+    if (cfg.isBot) {
+      var arch = cfg.archetype || 'analyst';
+      // Pick a random unused name for this archetype
+      var pool = BOT_NAMES[arch].filter(function(n) { return !usedBotNames[n]; });
+      if (pool.length === 0) pool = BOT_NAMES[arch];
+      var botName = pool[Math.floor(Math.random() * pool.length)];
+      usedBotNames[botName] = true;
+      configs.push({ name: botName, isBot: true, botArchetype: arch });
+    } else {
+      var input = document.querySelectorAll('#player-slots .player-slot')[i].querySelector('.slot-name-input');
+      var name = input ? input.value.trim() : '';
+      configs.push({ name: name || ('Player ' + (i + 1)) });
+    }
+  }
+  return configs;
+}
+
+// Initialize slots on load
+updatePlayerSlots();
+
+document.getElementById('start-btn').addEventListener('click', function() {
+  var configs = getPlayerConfigs();
+  initGame(configs);
+  buildTrack();
+  showScreen('game-screen');
+  renderAll();
+});
+
+// Quick Play: 1 human + 3 random bots
+document.getElementById('quick-play-btn').addEventListener('click', function() {
+  var archetypes = BOT_ARCHETYPES.slice();
+  // Shuffle and pick 3
+  for (var i = archetypes.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = archetypes[i]; archetypes[i] = archetypes[j]; archetypes[j] = tmp;
+  }
+  var configs = [{ name: 'Player 1' }];
+  var usedNames = {};
+  for (var k = 0; k < 3; k++) {
+    var arch = archetypes[k];
+    var pool = BOT_NAMES[arch].filter(function(n) { return !usedNames[n]; });
+    var botName = pool[Math.floor(Math.random() * pool.length)];
+    usedNames[botName] = true;
+    configs.push({ name: botName, isBot: true, botArchetype: arch });
+  }
+  initGame(configs);
   buildTrack();
   showScreen('game-screen');
   renderAll();
