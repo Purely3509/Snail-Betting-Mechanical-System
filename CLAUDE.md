@@ -19,6 +19,16 @@ Single-file application: HTML, CSS, and vanilla JS game engine are all inline. N
 
 **To run:** Open `index.html` in a browser. No server required.
 
+#### AI Bot System (local mode only)
+The game supports AI bot opponents in local hotseat mode. All bot logic lives inline in `index.html` — no new files. The system has four layers:
+
+- **Constants & Setup** (~lines 1015–1036): `BOT_ARCHETYPES`, `BOT_NAMES`, `BOT_ARCHETYPE_META`, `BOT_WEIGHTS` (personality weight vectors), `BOT_THINK_DELAY`, `BOT_NOISE`. Players are initialized via `initGame()` with `{ name, isBot, botArchetype }` config objects.
+- **Decision Engine** (Phase 2): `enumerateLegalActions()` lists all valid actions; `evaluateAction()` scores them using personality weights, Monte Carlo win probabilities (`simulateWinProbabilities()`), game phase, and coin position; `pickWeightedTop()` selects from top-3 with noise. Separate `enumerateDowntimeActions()` / `evaluateDowntimeAction()` / `executeBotDowntime()` handle between-race decisions.
+- **Turn Flow Integration** (Phase 3): `checkAndRunBotTurn()` is called after `nextTurn()`, game start, and race start. Bot downtime auto-submits with staggered delays. Human UI is disabled during bot turns via `isCurrentPlayerBot()` guards.
+- **Four personality archetypes**: Gambler (high-risk bets), Mogul (portfolio/shares), Saboteur (control/chaos), Analyst (calculated EV). Each has a weight vector that biases action scoring.
+
+Bots call the exact same game functions as humans (`placeBet`, `buyShare`, `drugSnail`, etc.) — no separate code paths. The PRD for the bot system is in `plan.md`.
+
 ### Online Async Mode (`app/`)
 ES module architecture across four files:
 - `app/async-engine.js` — Pure-function game engine (takes state, returns new state). Also runs server-side in Supabase edge functions.
@@ -50,5 +60,7 @@ Specifically:
 
 - Must work on iOS Safari (mobile-first, touch targets >= 44px, `100dvh` viewport)
 - All user input must be sanitized - never use `innerHTML` with untrusted content
-- High score persistence currently uses `localStorage` with key `snailBettingHighScore` for single-player mode
+- High score persistence uses `localStorage` with key `snailBettingHighScore` — triggers for solo human play (including human-vs-bots games)
 - If the game identity changes, update persisted storage keys deliberately to avoid mixing old and new save data
+- Bot logic is local-mode only (`index.html`). The PRD notes it could be ported to `async-engine.js` in the future but that is not yet done.
+- Never use `innerHTML` in bot display code — use `textContent` and `createElement` for all bot UI (thinking indicators, action toasts, badges)
